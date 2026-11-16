@@ -13,7 +13,7 @@ export function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <p className="center muted" role="status">Loading…</p>;
+  if (session === undefined) return <p className="boot" role="status">Opening Sidekick…</p>;
   if (!session) return <SignIn />;
   // key: a different account gets a fresh workspace (and its own outbox), never the previous one's state.
   return <Workspace key={session.user.id} userId={session.user.id} email={session.user.email ?? ''} />;

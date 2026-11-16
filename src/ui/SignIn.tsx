@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase.ts';
+import { Mark } from './Mark.tsx';
 
 export function SignIn() {
   const [email, setEmail] = useState('');
@@ -11,21 +12,27 @@ export function SignIn() {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (error) setError(navigator.onLine ? error.message : 'You are offline. Signing in needs an internet connection.');
+    if (error) {
+      setError(!navigator.onLine ? 'Signing in needs an internet connection. Connect and try again.'
+        : error.message === 'Invalid login credentials' ? 'That email and password do not match an invited account.' : error.message);
+    }
   }
 
   return (
     <main className="signin">
-      <form className="card signin-card" onSubmit={submit}>
-        <img src="./icon.svg" alt="" width={56} height={56} />
+      <div className="signin-seam" aria-hidden />
+      <form className="signin-card" onSubmit={submit}>
+        <Mark size={64} animate />
         <h1>Sidekick</h1>
-        <p className="muted">Invited members only.</p>
-        <label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-        <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        {error && <p className="error" role="alert">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+        <p className="signin-lede">The shared desk for two. Sign in with your invited account.</p>
+        <label htmlFor="email">Email</label>
+        <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <label htmlFor="password">Password</label>
+        <input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        {error && <p className="field-error" role="alert">{error}</p>}
+        <button className="primary wide" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
     </main>
   );
