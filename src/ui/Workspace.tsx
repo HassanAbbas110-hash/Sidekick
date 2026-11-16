@@ -19,7 +19,7 @@ import { enqueue, listQueue, processQueue, removeFromQueue, type QueuedUpload } 
 import { dropKept, purgeFile, uploadDeps } from '../lib/files.ts';
 import { decideRequest, loadRequests, loadTrash, purgeItem, requestDeletion, restoreItem, trashItem, type DeletionRequest, type TrashedItem } from '../lib/data.ts';
 
-type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: string };
+type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: string; opId?: string };
 type RowSync = 'synced' | 'pending' | 'failed';
 export type Row = {
   id: string; kind: string; title: string | null; body: string | null; createdBy: string;
@@ -186,7 +186,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     setSync({ state: 'syncing' });
     const r = await box.flush(sendOp);
     setPending(await box.pending());
-    setSync(r.failed ? { state: navigator.onLine ? 'failed' : 'offline', error: r.failed.error } : { state: 'synced' });
+    setSync(r.failed ? { state: navigator.onLine ? 'failed' : 'offline', error: r.failed.error, opId: r.failed.op_id } : { state: 'synced' });
     if (r.results.length) {
       kickPushQueue();
       await reloadItems();
@@ -302,7 +302,24 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
 
       {savedCopy && <p className="notice warn" role="status">Showing what this device saved at {clock.format(new Date(savedCopy))}. Changes from {partnerName} since then will appear when you reconnect.</p>}
       {loadError && <p className="notice bad" role="alert">{loadError}</p>}
-      {sync.state === 'failed' && <p className="notice bad" role="alert">The server refused a change: {sync.error}. It is kept on this device and retried.</p>}
+      {sync.state === 'failed' && (() => {
+        const stuck = pending.find((p) => p.op_id === sync.opId);
+        const what = !stuck ? 'A change' : stuck.type === 'call' ? stuck.label : stuck.type === 'create' ? `New ${stuck.kind}` : 'An edit';
+        const behind = pending.length - 1;
+        return (
+          <div className="notice bad stuck" role="alert">
+            <p><b>{what}</b> was refused by the server: {sync.error}.{behind > 0 ? ` ${behind} later change${behind === 1 ? ' is' : 's are'} waiting behind it.` : ''} It is kept on this device.</p>
+            <span className="row-start">
+              <button onClick={() => flush()}>Retry</button>
+              {stuck && box && <button className="ghost danger" onClick={async () => {
+                if (!confirm(`Skip "${what}"? It will be removed from this device and never sent. Everything after it will then sync.`)) return;
+                await box.remove(stuck.op_id);
+                await flush();
+              }}>Skip this change</button>}
+            </span>
+          </div>
+        );
+      })()}
 
       <div className="frame">
         <nav className="rail" aria-label="Spaces">

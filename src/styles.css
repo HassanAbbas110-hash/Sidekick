@@ -623,3 +623,6 @@ label.check input { width: 22px; min-height: 22px; accent-color: var(--gold); }
 .task-title.static:hover { color: inherit; }
 .private-note { box-shadow: inset 0 3px 0 var(--gold); }
 .privacy-notices { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+
+.notice.stuck { display: grid; gap: 8px; }
+.notice.stuck p { margin: 0; }
