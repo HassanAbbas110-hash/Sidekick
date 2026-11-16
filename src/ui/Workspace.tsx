@@ -5,6 +5,7 @@ import { disablePush, enablePush, kickPushQueue, type PushStatus } from '../lib/
 import { dropCache, withCache } from '../lib/cache.ts';
 import { Outbox, type Fields, type Op } from '../sync/outbox.ts';
 import { Mark } from './Mark.tsx';
+import { ClientsView } from './Clients.tsx';
 
 type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: string };
 type RowSync = 'synced' | 'pending' | 'failed';
@@ -73,6 +74,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [inboxOpen, setInboxOpen] = useState(false);
   const [push, setPush] = useState<PushStatus | null>(null);
   const [side, setSide] = useState<Side>('you');
+  const [view, setView] = useState<'tasks' | 'clients'>('tasks');
   const [arrived, setArrived] = useState<{ id: string; to: Side } | null>(null);
 
   // Each account has its own outbox database on this device.
@@ -256,6 +258,14 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                 </p>
               </section>
 
+              <div className="views" role="tablist" aria-label="What to show">
+                <button role="tab" aria-selected={view === 'tasks'} className={view === 'tasks' ? 'on' : ''} onClick={() => setView('tasks')}>Tasks and notes</button>
+                <button role="tab" aria-selected={view === 'clients'} className={view === 'clients' ? 'on' : ''} onClick={() => setView('clients')}>Clients and money</button>
+              </div>
+
+              {view === 'clients' ? (
+                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} />
+              ) : (<>
               <QuickAdd partnerName={partnerName} partnerId={partner?.id ?? null} userId={userId} onAdd={addItem} />
 
               <div className="side-switch" role="tablist" aria-label="Whose tasks">
@@ -290,6 +300,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                   </ul>
                 )}
               </section>
+              </>)}
             </>
           )}
         </main>

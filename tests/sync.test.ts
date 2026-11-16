@@ -4,12 +4,12 @@ import 'fake-indexeddb/auto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Outbox, type Op, type OpResult } from '../src/sync/outbox.ts';
+import { Outbox, type Op, type ItemOpResult } from '../src/sync/outbox.ts';
 import { freshDb, as, newItem, HASSAN, MARKETER, SHARED, HASSAN_PRIVATE } from './helpers/db.ts';
 import type { PGlite } from '@electric-sql/pglite';
 
 const applyAs = (db: PGlite, user: string) => async (op: Op) =>
-  (await as<{ r: OpResult }>(db, user, `select apply_op($1::jsonb) as r`, [JSON.stringify(op)]))[0].r;
+  (await as<{ r: ItemOpResult }>(db, user, `select apply_op($1::jsonb) as r`, [JSON.stringify(op)]))[0].r;
 
 test('A9: queued work survives restart, and a lost acknowledgement does not duplicate it', async () => {
   const db = await freshDb();
@@ -35,7 +35,7 @@ test('A9: queued work survives restart, and a lost acknowledgement does not dupl
 
   const second = await box.flush(send);
   assert.equal(second.failed, null);
-  assert.equal(second.results[0].result.replayed, true);
+  assert.equal((second.results[0].result as ItemOpResult).replayed, true);
   assert.equal((await box.pending()).length, 0);
 
   const rows = await as(db, HASSAN, `select title, created_by from items where id = $1`, [create.id]);

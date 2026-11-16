@@ -113,6 +113,33 @@ begin
   select count(*) into n from private_deletion_notices;
   res := res || jsonb_build_object('A6 member cannot read notices', n = 0);
 
+  -- ---------- money ledger (spec A10) on the real database, as the marketer and then Hassan ----------
+  declare
+    cl uuid; pay2 jsonb; outstanding bigint;
+  begin
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', m, 'role', 'authenticated')::text, true);
+    insert into clients (space_id, name) values (shared_space, 'Live check client') returning id into cl;
+    perform add_charge(gen_random_uuid(), cl, 'Synthetic build', 170000, 'ZAR', current_date + 10);
+    perform record_payment(gen_random_uuid(), cl, 50000, 'ZAR', current_date);
+    select outstanding_minor into outstanding from client_balances where client_id = cl;
+    res := res || jsonb_build_object('A10 R1700 - R500 = R1200', outstanding = 120000);
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', h, 'role', 'authenticated')::text, true);
+    op := jsonb_build_object('op', gen_random_uuid());
+    pay2 := record_payment((op->>'op')::uuid, cl, 20000, 'ZAR', current_date);
+    perform record_payment((op->>'op')::uuid, cl, 20000, 'ZAR', current_date); -- replay
+    select outstanding_minor into outstanding from client_balances where client_id = cl;
+    res := res || jsonb_build_object('A10 R200 more = R1000, replay adds nothing', outstanding = 100000);
+    perform reverse_payment(gen_random_uuid(), (pay2->>'payment_id')::uuid, 'live check');
+    select outstanding_minor into outstanding from client_balances where client_id = cl;
+    res := res || jsonb_build_object('A10 reversal returns to R1200', outstanding = 120000);
+    begin
+      update payments set amount_minor = 1 where client_id = cl;
+      res := res || '{"A10 payments cannot be edited": false}';
+    exception when insufficient_privilege then
+      res := res || '{"A10 payments cannot be edited": true}';
+    end;
+  end;
+
   -- ---------- signed out ----------
   perform set_config('request.jwt.claims', '', true);
   perform set_config('role', 'anon', true);
@@ -124,5 +151,9 @@ begin
   end;
 
   perform set_config('role', 'none', true);
-  raise exception 'LIVE_RESULTS %', res; -- always roll back
+  -- Compact summary (the API truncates long error messages): totals plus the names of any failures.
+  raise exception 'LIVE_RESULTS %', jsonb_build_object(
+    'total', (select count(*) from jsonb_each(res)),
+    'passed', (select count(*) from jsonb_each(res) where value = 'true'),
+    'failed', coalesce((select jsonb_agg(key) from jsonb_each(res) where value <> 'true'), '[]'::jsonb)); -- always roll back
 end $$;

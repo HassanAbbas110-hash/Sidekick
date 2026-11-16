@@ -5,9 +5,14 @@ export type Fields = Partial<Record<'title' | 'body' | 'starts_at' | 'ends_at' |
 
 export type Op =
   | { op_id: string; type: 'create'; id: string; space_id: string; kind: string; fields: Fields }
-  | { op_id: string; type: 'update'; id: string; base_version: number; fields: Fields };
+  | { op_id: string; type: 'update'; id: string; base_version: number; fields: Fields }
+  // Money and agreement actions: server functions that dedupe by op_id (spec §8: no double-posting on replay).
+  | { op_id: string; type: 'call'; fn: MoneyFn; client_id: string; label: string; args: Record<string, string | number | null> };
 
-export type OpResult = { status: 'applied' | 'partial' | 'conflict'; version: number; conflicts: string[]; replayed?: boolean };
+export type MoneyFn = 'record_payment' | 'add_charge' | 'reverse_payment' | 'create_agreement';
+
+export type ItemOpResult = { status: 'applied' | 'partial' | 'conflict'; version: number; conflicts: string[]; replayed?: boolean };
+export type OpResult = ItemOpResult | { status: 'called'; result: unknown };
 
 /** One IndexedDB database per signed-in user, so the next account on the device never reads this queue. */
 export const outboxName = (userId: string) => `sidekick-${userId}`;

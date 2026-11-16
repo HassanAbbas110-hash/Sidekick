@@ -34,6 +34,12 @@ Progress (2026-11-16):
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 
+Pulled forward from Stage 2/3 at Hassan's request (2026-11-16):
+- [x] Clients and lead pipeline (approached → discussion → proposal → client, paused/lost/archived), contacts, follow-up date, edit history, version-checked edits
+- [x] Money ledger: agreements (snapshot of agreed price, deposit, once-off or monthly), charges, payments with oldest-first allocation, reversals with reason; append-only; integer cents; currency per amount, never summed across currencies; op_id idempotency; queued offline through the outbox
+- [x] Monthly charges: stable YYYY-MM periods, month-end clamping, daily schedule
+- [ ] Package catalogue screen (agreements already snapshot the actual price), payment proof attachments, renewal reminders
+
 ## Stage 2 — complete organisation
 File library, versioning, selective offline, quick capture, search, pipeline, templates, dependencies, comments, change requests, CSV/folder import with preview and rollback.
 

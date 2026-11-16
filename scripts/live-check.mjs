@@ -13,13 +13,12 @@ try {
 
 // The results JSON is escaped once by the API and once more by the CLI's JSON error output.
 const unescaped = out.replaceAll('\\\\\\"', '"').replaceAll('\\"', '"');
-const match = unescaped.match(/LIVE_RESULTS (\{.*?\})/);
+const match = unescaped.match(/LIVE_RESULTS (\{[^}]*\})/);
 if (!match) {
-  console.error('Live check did not produce results. Output was:\n' + out);
+  console.error(`Live check did not produce results. Output was:\n${out}`);
   process.exit(1);
 }
-const results = Object.entries(JSON.parse(match[1])).sort(([a], [b]) => a.localeCompare(b));
-for (const [name, ok] of results) console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`);
-const failed = results.filter(([, ok]) => !ok).length;
-console.log(`\n${results.length - failed}/${results.length} live checks passed (all fixtures rolled back)`);
-process.exit(failed ? 1 : 0);
+const { total, passed, failed } = JSON.parse(match[1]);
+for (const name of failed) console.log(`FAIL  ${name}`);
+console.log(`${passed}/${total} live checks passed (all fixtures rolled back). Check names: tests/live/privacy-live.sql`);
+process.exit(failed.length || passed !== total ? 1 : 0);
