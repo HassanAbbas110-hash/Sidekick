@@ -138,14 +138,14 @@ export function Unlock({ userId, onUnlocked }: { userId: string; onUnlocked: (ke
   );
 }
 
-type Shown = { id: string; kind: string; title: string | null; body: string | null; status: string | null; version: number; starts_at?: string | null };
+type Shown = { id: string; kind: string; title: string | null; body: string | null; status: string | null; version: number; starts_at?: string | null; url: string | null };
 
 /** Decrypt rows for display; anything that cannot be opened with this key says so plainly. */
-export function useRevealed(rows: { id: string; kind: string; title: string | null; body: string | null; status?: string | null; version?: number; starts_at?: string | null }[], key: CryptoKey | null) {
+export function useRevealed(rows: { id: string; kind: string; title: string | null; body: string | null; status?: string | null; version?: number; starts_at?: string | null; url?: string | null }[], key: CryptoKey | null) {
   const [shown, setShown] = useState<Shown[]>([]);
   // Re-decrypt only when the rows' content changes. Callers pass freshly built arrays on every render, so
   // depending on the array itself re-ran this on every render: decrypt → setState → render → decrypt (a freeze).
-  const signature = rows.map((r) => `${r.id}:${r.version ?? 0}:${r.status ?? ''}:${r.title ?? ''}:${r.body ?? ''}`).join('|');
+  const signature = rows.map((r) => `${r.id}:${r.version ?? 0}:${r.status ?? ''}:${r.title ?? ''}:${r.body ?? ''}:${r.url ?? ''}`).join('|');
   const latest = useRef(rows);
   latest.current = rows;
   useEffect(() => {
@@ -153,6 +153,7 @@ export function useRevealed(rows: { id: string; kind: string; title: string | nu
     Promise.all(latest.current.map(async (r) => ({
       id: r.id, kind: r.kind, status: r.status ?? null, version: r.version ?? 0, starts_at: r.starts_at,
       title: await reveal(key, r.title, r.id, 'title'), body: await reveal(key, r.body, r.id, 'body'),
+      url: await reveal(key, r.url ?? null, r.id, 'url'),
     }))).then((s) => alive && setShown(s));
     return () => { alive = false; };
   }, [signature, key]);

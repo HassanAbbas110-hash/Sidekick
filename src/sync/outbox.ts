@@ -1,7 +1,7 @@
 // Durable outbox: every local change is queued here and survives app restarts until the server acknowledges it.
 // The server dedupes by op_id (apply_op), so resending after a lost acknowledgement cannot apply anything twice.
 
-export type Fields = Partial<Record<'title' | 'body' | 'starts_at' | 'ends_at' | 'assignee' | 'status' | 'due_at' | 'task_id', string | null>>
+export type Fields = Partial<Record<'title' | 'body' | 'starts_at' | 'ends_at' | 'assignee' | 'status' | 'due_at' | 'task_id' | 'url', string | null>>
   & { all_day?: boolean; recur?: { freq: string; interval?: number; byweekday?: number[]; until?: string } | null };
 
 export type Op =

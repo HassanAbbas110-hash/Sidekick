@@ -698,3 +698,68 @@ label.check input { width: 22px; min-height: 22px; accent-color: var(--gold); }
   .vault-head { flex-wrap: wrap; }
   .lock-btn span { display: none; }
 }
+
+/* ---------- polish pass: monograms, space hero, links ---------- */
+/* monogram tiles: a space's initial set in the display face; the selected one turns gold */
+.mono {
+  flex: none; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+  font-weight: 700; font-stretch: 80%; font-size: 0.95rem; color: var(--mist);
+  background: var(--plum-2); border: 1px solid var(--line); transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.space.on .mono { background: var(--gold-grad); color: var(--ink); border-color: transparent; }
+.space:hover:not(:disabled) .mono { color: var(--ivory); border-color: var(--mist); }
+.space-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono-lg { width: 64px; height: 64px; border-radius: 20px; font-size: 2rem; color: var(--ink); background: var(--gold-grad); border: 0; box-shadow: 0 16px 40px -18px var(--gold-deep); }
+
+/* space hero: the tile sits beside the date, title and summary */
+.intro.hero { grid-template-columns: auto minmax(0, 1fr); column-gap: 20px; align-items: center; }
+.intro.hero .mono-lg { grid-row: 1 / span 3; align-self: start; margin-top: 4px; }
+
+/* the stage gets a soft warm glow from the top so pages feel lit rather than flat */
+.stage { position: relative; isolation: isolate; }
+.stage::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 420px; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 100% at 10% 0%, color-mix(in srgb, var(--gold) 7%, transparent), transparent 70%);
+}
+
+/* tabs: thicker active rule that slides in */
+.views button.on::after { animation: rule-in 0.28s var(--ease); }
+@keyframes rule-in { from { transform: scaleX(0.3); opacity: 0; } }
+
+/* ---------- links strip ---------- */
+.links { display: grid; gap: 10px; }
+.links-head { display: flex; align-items: baseline; justify-content: space-between; }
+.links-head h2 { font-size: 1.05rem; color: var(--mist); font-weight: 600; }
+.add-link { color: var(--gold); min-height: 36px; }
+.link-cards { list-style: none; margin: 0; padding: 2px 2px 10px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 300px); gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.link-card { position: relative; scroll-snap-align: start; border-radius: var(--r-md); background: var(--plum); border: 1px solid var(--line); transition: border-color 0.2s, transform 0.2s var(--ease); }
+.link-card:hover { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); transform: translateY(-2px); }
+.link-card.pending { border-style: dashed; border-color: var(--gold-deep); }
+.link-card.broken { padding: 12px 14px; display: grid; gap: 4px; }
+.link-main { width: 100%; height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; text-align: left; padding: 14px 34px 14px 14px; border: 0; background: none; border-radius: var(--r-md); }
+.link-main:hover:not(:disabled) { border: 0; }
+.link-icon { position: relative; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--ivory); overflow: hidden; }
+.link-icon img { position: absolute; inset: 8px; background: var(--ivory); }
+.link-icon img { width: 22px; height: 22px; object-fit: contain; }
+.link-icon b { color: var(--ink); font-weight: 700; font-stretch: 80%; font-size: 1.1rem; }
+.link-text { display: grid; gap: 1px; min-width: 0; }
+.link-name { font-weight: 650; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.link-where { color: var(--gold); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-note { color: var(--mist); font-size: 0.82rem; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.link-go { color: var(--mist); }
+.link-card:hover .link-go { color: var(--gold); }
+.link-tools { position: absolute; top: 6px; right: 4px; }
+.link-tools .icon-btn { width: 36px; min-height: 36px; font-size: 1.1rem; }
+.link-menu { position: absolute; right: 0; top: 38px; z-index: 3; display: grid; min-width: 150px; padding: 6px; border-radius: var(--r-md); background: var(--plum-2); border: 1px solid var(--line); box-shadow: 0 18px 40px -18px #000; }
+.link-menu button { justify-content: flex-start; text-align: left; border: 0; background: none; border-radius: var(--r-sm); min-height: 40px; }
+.link-menu button:hover:not(:disabled) { background: var(--plum); }
+.link-state { position: absolute; bottom: 8px; right: 12px; font-size: 0.72rem; }
+.link-form { gap: 10px; }
+.vault .link-card { background: color-mix(in srgb, var(--ink) 60%, transparent); }
+
+@media (max-width: 820px) {
+  .intro.hero { column-gap: 14px; }
+  .mono-lg { width: 52px; height: 52px; font-size: 1.6rem; border-radius: 16px; }
+  .link-cards { grid-auto-columns: minmax(220px, 78vw); }
+  .space .mono { width: 24px; height: 24px; font-size: 0.85rem; border-radius: 7px; }
+}

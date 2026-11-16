@@ -12,6 +12,7 @@ import { CalendarView, type Prefill } from './Calendar.tsx';
 import { FocusPanel, FocusPill } from './Focus.tsx';
 import { PrivateSetup, Unlock } from './Private.tsx';
 import { PrivateView } from './PrivateRoom.tsx';
+import { LinksStrip, type LinkRow } from './Links.tsx';
 import { lock, storedKey } from '../lib/keystore.ts';
 import { loadPrivacyNotices, reveal, vaultRemote, type PrivacyNotice } from '../lib/data.ts';
 import { loadTimer, type Timer } from '../lib/focus.ts';
@@ -271,6 +272,12 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const rows = buildRows(items, pending, spaceId, sync.state === 'failed');
   const tasks = rows.filter((r) => r.kind === 'task');
   const notes = rows.filter((r) => r.kind === 'note');
+  const linkRows: LinkRow[] = [
+    ...pending.filter((o): o is Extract<Op, { type: 'create' }> => o.type === 'create' && o.kind === 'link' && o.space_id === spaceId)
+      .map((o) => ({ id: o.id, title: o.fields.title ?? null, body: o.fields.body ?? null, url: o.fields.url ?? null, pending: true })),
+    ...items.filter((i) => i.kind === 'link' && !pending.some((o) => o.type === 'create' && o.id === i.id))
+      .map((i) => ({ id: i.id, title: i.title, body: i.body, url: i.url ?? null, version: i.version, pending: false })),
+  ];
   const mine = tasks.filter((t) => t.assignee === userId);
   const theirs = tasks.filter((t) => t.assignee && t.assignee !== userId);
   const loose = tasks.filter((t) => !t.assignee && t.status !== 'done').sort(byUrgency);
@@ -332,7 +339,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
             {spaces.filter((s) => s.visibility === 'shared').map((s) => (
               <li key={s.id}>
                 <button className={s.id === spaceId && page === 'space' ? 'space on' : 'space'} aria-current={s.id === spaceId && page === 'space'} onClick={() => { setSpaceId(s.id); setPage('space'); }}>
-                  <span className="space-dot" aria-hidden />{s.name}
+                  <span className="mono" aria-hidden>{s.name.trim().charAt(0).toUpperCase()}</span><span className="space-name">{s.name}</span>
                 </button>
               </li>
             ))}
@@ -373,7 +380,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
             </section>
           ) : (
             <>
-              <section className="intro">
+              <section className="intro hero">
+                <span className="mono mono-lg" aria-hidden>{space.name.trim().charAt(0).toUpperCase()}</span>
                 <p className="date">{cap(dayLine.format(new Date()))}</p>
                 <h1>{space.name}</h1>
                 <p className="summary">
@@ -381,6 +389,16 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                   {loose.length > 0 && <> {loose.length === 1 ? 'One task is' : `${loose.length} tasks are`} still unclaimed.</>}
                 </p>
               </section>
+
+              <LinksStrip links={linkRows} removeLabel={isOwner ? 'Move to trash' : 'Ask to delete'} removePending={(id) => Boolean(deletion.requestFor(id))}
+                onAdd={(s) => addItem('link', { url: s.url, title: s.title, body: s.body })}
+                onEdit={(l, s) => (l.version ? queue({ op_id: crypto.randomUUID(), type: 'update', id: l.id, base_version: l.version, fields: { url: s.url, title: s.title, body: s.body } }) : Promise.resolve())}
+                onRemove={async (l) => {
+                  if (!l.version) return;
+                  if (isOwner) { await trashItem(l.id); await afterDeletion(); return; }
+                  const reason = prompt(`Why should "${l.title ?? 'this link'}" be removed? Hassan decides.`);
+                  if (reason?.trim()) { await requestDeletion(l.id, l.version, reason.trim(), 'delete', userId); await afterDeletion(); }
+                }} />
 
               <div className="views" role="tablist" aria-label="What to show">
                 <button role="tab" aria-selected={view === 'tasks'} className={view === 'tasks' ? 'on' : ''} onClick={() => setView('tasks')}>Tasks and notes</button>

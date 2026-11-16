@@ -6,6 +6,7 @@ import { BellIcon, Inbox, Lane, QuickAdd, SyncPill, TaskCard, type Row } from '.
 import { ClientsView } from './ui/Clients.tsx';
 import { Approvals, TrashView } from './ui/Deletion.tsx';
 import { FilesView } from './ui/Files.tsx';
+import { LinksStrip } from './ui/Links.tsx';
 import { CalendarView } from './ui/Calendar.tsx';
 import { FocusPanel } from './ui/Focus.tsx';
 import { PrivateSetup } from './ui/Private.tsx';
@@ -148,13 +149,19 @@ createRoot(document.getElementById('root')!).render(
     ]} />}
     <div className="frame">
       <nav className="rail"><p className="rail-title">Spaces</p><ul>
-        <li><button className="space on"><span className="space-dot" />WebRift</button></li>
-        <li><button className="space"><span className="space-dot" />7 Waves</button></li>
-        <li><button className="space"><span className="space-dot" />Shared study</button></li>
+        <li><button className="space on"><span className="mono">W</span><span className="space-name">WebRift</span></button></li>
+        <li><button className="space"><span className="mono">7</span><span className="space-name">7 Waves</span></button></li>
+        <li><button className="space"><span className="mono">S</span><span className="space-name">Shared study</span></button></li>
       </ul><button className="ghost new-space-btn">New shared space</button></nav>
       <main className="stage">
-        <section className="intro"><p className="date">Monday, 16 November</p><h1>WebRift</h1>
+        <section className="intro hero"><span className="mono mono-lg">W</span><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
+        <LinksStrip removeLabel="Move to trash" removePending={() => false} onAdd={async () => {}} onEdit={async () => {}} onRemove={async () => {}} links={[
+          { id: 'l1', title: 'WebRift (live site)', body: null, url: 'https://webrift.example/', version: 1, pending: false },
+          { id: 'l2', title: 'Quote admin', body: 'Approve new quotes here first thing', url: 'https://webrift.example/admin/quotes', version: 1, pending: false },
+          { id: 'l3', title: 'Vercel dashboard', body: null, url: 'https://vercel.com/dashboard', version: 1, pending: false },
+          { id: 'l4', title: 'Client folder', body: 'Logos, briefs, signed quotes', url: 'https://drive.google.com/drive/folders/example', version: 1, pending: true },
+        ]} />
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
         {setupMode ? <PrivateSetup userId={ME} isOwner={false} ownerName="Hassan" partnerName="Hassan" onDone={() => {}} />
         : privMode ? <PrivateView space={{ id: 'p', name: 'x', visibility: 'private', owner_id: ME }} name="Private" items={privItems} pending={[]} keyFor={demoKey!}

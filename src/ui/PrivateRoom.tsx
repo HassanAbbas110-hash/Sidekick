@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { deletePrivateForGood, hide, loadPrivateTrash, setPrivateTrashed, type Item, type Space } from '../lib/data.ts';
 import type { Fields, Op } from '../sync/outbox.ts';
 import { useRevealed } from './Private.tsx';
+import { LinksStrip } from './Links.tsx';
 
 const LockIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden className="icon"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></svg>
@@ -16,7 +17,7 @@ export function PrivateView({ space, name, items, pending, keyFor, queue, onLock
   const waiting = pending.filter((o): o is Extract<Op, { type: 'create' }> => o.type === 'create' && o.space_id === space.id);
   const waitingIds = new Set(waiting.map((o) => o.id));
   const rows = [
-    ...waiting.map((o) => ({ id: o.id, kind: o.kind, title: o.fields.title ?? null, body: o.fields.body ?? null, status: o.fields.status ?? null, version: 0 })),
+    ...waiting.map((o) => ({ id: o.id, kind: o.kind, title: o.fields.title ?? null, body: o.fields.body ?? null, status: o.fields.status ?? null, url: o.fields.url ?? null, version: 0 })),
     ...items.filter((i) => i.kind !== 'file' && !waitingIds.has(i.id)),
   ];
   const shown = useRevealed(rows, keyFor);
@@ -54,6 +55,10 @@ export function PrivateView({ space, name, items, pending, keyFor, queue, onLock
   const notes = shown.filter((s) => s.kind === 'note');
   const openTasks = tasks.filter((t) => t.status !== 'done').length;
   const unsynced = (id: string) => waitingIds.has(id);
+  const links = shown.filter((s) => s.kind === 'link').map((l) => ({ ...l, pending: unsynced(l.id) }));
+  const sealLink = async (id: string, s: { url: string; title: string; body: string | null }): Promise<Fields> => ({
+    url: await hide(keyFor, s.url, id, 'url'), title: await hide(keyFor, s.title, id, 'title'), body: await hide(keyFor, s.body, id, 'body'),
+  });
 
   return (
     <section className="vault" aria-label={name}>
@@ -84,6 +89,11 @@ export function PrivateView({ space, name, items, pending, keyFor, queue, onLock
         </div>
         {error && <p className="field-error" role="alert">{error}</p>}
       </form>
+
+      <LinksStrip links={links} privateNote removeLabel="Move to trash" removePending={() => false}
+        onAdd={async (s) => { const id = crypto.randomUUID(); await queue({ op_id: crypto.randomUUID(), type: 'create', id, space_id: space.id, kind: 'link', fields: await sealLink(id, s) }); }}
+        onEdit={async (l, s) => { await queue({ op_id: crypto.randomUUID(), type: 'update', id: l.id, base_version: l.version ?? 0, fields: await sealLink(l.id, s) }); }}
+        onRemove={(l) => act(() => setPrivateTrashed(l.id, true))} />
 
       <div className="vault-grid">
         <section className="vault-col" aria-labelledby="v-tasks">

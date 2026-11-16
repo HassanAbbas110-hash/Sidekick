@@ -35,6 +35,8 @@ Progress (2026-11-16):
 - [x] Calendar (0008 + Calendar view): day/week/month across shared spaces, all-day vs timed, repeating events (daily/weekly days/monthly, until), skip one occurrence, deadlines shown separately from work blocks linked to tasks, partner Busy (times only). Display timezone Africa/Johannesburg (proposed default).
 - [x] Focus timer: stopwatch/countdown/cycles, restart-safe, one running per person, overlap-safe totals, completion asked not inferred, manual corrections with reason, Android alarms with generic text, partner sees totals only; session label stays on device.
 - [x] Private area (0009 + screens): setup with onboarding of what stays private / what the partner sees, passphrase (12+), one-time recovery key with check, unlock, recovery to a new passphrase, Lock; encrypted titles/bodies/space names; private tasks and notes with trash/restore/delete; private events in the calendar (encrypted titles, partner sees Busy); Hassan's inbox lists redacted private-deletion notices.
+- [x] Links (0010): http(s)-only addresses (database check + app check), link cards with the site's own icon, name, address and note, in every shared and private space (private: address, name and note encrypted); delete via the normal approval flow.
+- [x] UI pass: space monograms in the rail, space hero header, warm stage light, link strip as a space home bar.
 - [ ] Private files (encrypt bytes before upload), comments, file export, moving a single occurrence, weekly review
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
