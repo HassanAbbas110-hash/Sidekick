@@ -1139,3 +1139,8 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 .repeat-fact { color: var(--ivory); font-size: 0.82rem; }
 .due-pick select { width: auto; min-height: 40px; }
 .repeat-hint { flex-basis: 100%; padding-left: 10px; }
+
+/* instant sync: a soft ring breathes around the dot while connected */
+.sync-live { color: var(--sage); }
+.sync-live .sync-dot { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sage) 60%, transparent); animation: live-ring 2.4s ease-out infinite; }
+@keyframes live-ring { 70%, 100% { box-shadow: 0 0 0 6px transparent; } }

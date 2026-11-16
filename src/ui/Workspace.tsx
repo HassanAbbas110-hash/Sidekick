@@ -94,6 +94,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [items, setItems] = useState<Item[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [threadKey, setThreadKey] = useState(0);
+  const [live, setLive] = useState(false);
+  const [liveKey, setLiveKey] = useState(0); // bumps when the other person changes something
   const [pending, setPending] = useState<Op[]>([]);
   const [sync, setSync] = useState<SyncState>({ state: navigator.onLine ? 'synced' : 'offline' });
   const [savedCopy, setSavedCopy] = useState<string | null>(null);
@@ -242,6 +244,20 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   }, [box, reloadItems, reloadInbox]);
 
   useEffect(() => { refresh(); reloadInbox(); }, [refresh, reloadInbox]);
+
+  // Instant sync: Supabase Realtime tells us when a row we are allowed to read changes. Bursts are folded
+  // into one refresh. The 30-second check below stays as a safety net if the connection drops.
+  const onLive = useRef<() => void>(() => {});
+  onLive.current = () => { reloadItems(); reloadInbox(); reloadDeletion(); setFilesKey((k) => k + 1); setLiveKey((k) => k + 1); };
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => { if (!t) t = setTimeout(() => { t = null; onLive.current(); }, 350); };
+    let ch = supabase.channel(`live:${userId}`);
+    for (const table of ['items', 'comments', 'notifications', 'deletion_requests', 'clients', 'charges', 'payments', 'reminders'])
+      ch = ch.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
+    ch.subscribe((status) => setLive(status === 'SUBSCRIBED'));
+    return () => { if (t) clearTimeout(t); supabase.removeChannel(ch); };
+  }, [userId]);
   useEffect(() => { reloadItems(); reloadDeletion(); }, [reloadItems, reloadDeletion]);
   useEffect(() => {
     flush();
@@ -360,7 +376,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
       <header className="bar">
         <Mark size={30} animate />
         <span className="wordmark">Sidekick</span>
-        <SyncPill sync={sync} waiting={pending.length} />
+        <SyncPill sync={sync} waiting={pending.length} live={live} />
         <span className="grow" />
         <button className="ghost search-btn" onClick={() => setSearchOpen(true)} aria-label="Search (press / or Ctrl K)">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden className="icon"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
@@ -456,13 +472,13 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
             ) : <Unlock userId={userId} onUnlocked={(k) => setPrivKey(k)} />
           ) : page === 'today' ? (
             <TodayView userId={userId} name={myName} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} privateKey={privKey} timer={timer}
-              refreshKey={pending.length + items.length} onOpenCalendar={() => setPage('calendar')} onFocus={() => setFocusOpen(true)}
+              refreshKey={pending.length + items.length + liveKey} onOpenCalendar={() => setPage('calendar')} onFocus={() => setFocusOpen(true)}
               onOpenTask={(sid, id) => { setSpaceId(sid); setPage('space'); setView('tasks'); setJump({ kind: 'task', id }); }} />
           ) : page === 'week' ? (
-            <WeekView userId={userId} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} queue={queue} refreshKey={pending.length + items.length}
+            <WeekView userId={userId} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} queue={queue} refreshKey={pending.length + items.length + liveKey}
               onOpenTask={(sid, id) => { setSpaceId(sid); setPage('space'); setView('tasks'); setJump({ kind: 'task', id }); }} />
           ) : page === 'calendar' ? (
-            <CalendarView userId={userId} spaces={spaces} privateKey={privKey} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
+            <CalendarView userId={userId} spaces={spaces} privateKey={privKey} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length + liveKey /* also reloads on live changes */}
               online={sync.state !== 'offline'} prefill={prefill} onPrefillUsed={() => setPrefill(null)} />
           ) : !space ? (
             <section className="intro empty-intro">
@@ -586,12 +602,12 @@ function NoteThread({ count, children }: { count: number; children: ReactNode })
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function SyncPill({ sync, waiting }: { sync: SyncState; waiting: number }) {
+export function SyncPill({ sync, waiting, live = false }: { sync: SyncState; waiting: number; live?: boolean }) {
   const text = sync.state === 'syncing' ? 'Syncing'
     : sync.state === 'offline' ? (waiting ? `Offline, ${waiting} saved here` : 'Offline')
     : sync.state === 'failed' ? 'Sync problem'
-    : waiting ? `${waiting} waiting` : 'Synced';
-  return <span className={`sync sync-${sync.state}`} role="status" title={sync.error}><span className="sync-dot" aria-hidden />{text}</span>;
+    : waiting ? `${waiting} waiting` : live ? 'Live' : 'Synced';
+  return <span className={`sync sync-${sync.state}${live && sync.state === 'synced' && !waiting ? ' sync-live' : ''}`} role="status" title={sync.error}><span className="sync-dot" aria-hidden />{text}</span>;
 }
 
 function SyncNote({ sync }: { sync: RowSync }) {
