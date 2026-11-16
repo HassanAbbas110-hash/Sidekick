@@ -26,4 +26,4 @@ Status labels: Not started · Implemented · Automated-test verified · Real-bro
 | S0-LOGO | Logo concept | 0 | brand/ | — | brand/logo-sheet.png | Implemented (unapproved) |
 | S0-SUPA | Sidekick Supabase project, schema applied | 0 | supabase/ | npm run test:live | ref acpyiscfzjsnvpxtukge, eu-west-3 | Implemented (verified) |
 | S1-SHELL | Browser app shell signs in against real Supabase | 1 | src/ui/SignIn.tsx | manual Playwright check | wrong-password error shown, 2026-11-16 | Real-browser verified (sign-in error path only) |
-| S1-APK | Signed APK build pipeline | 1 | .github/workflows/android.yml, android/ | CI run | — | Implemented (not yet run) |
+| S1-APK | Signed APK build pipeline | 1 | .github/workflows/android.yml, android/ | GitHub Actions run 43861881087 (attempt 2) | APK 3.5 MB, sha256 fd4185fd…10162, v2/v3 signature by CN=Sidekick cert, web app bundled inside | Implemented (CI verified; not yet installed on a phone) |

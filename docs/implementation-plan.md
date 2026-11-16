@@ -20,7 +20,7 @@ Progress (2026-11-16):
 - [x] App shell: Vite + React + TypeScript, Capacitor Android project (`app.sidekick.organiser`), Sidekick launcher icon and splash
 - [x] Sign-in screen against the real Supabase project (wrong password shows a clear error; checked in a real browser)
 - [x] Shared spaces list, create shared space, add note/task through the outbox with per-item sync status (code written; **not yet exercised with real accounts**)
-- [x] GitHub Actions workflow for a signed APK (**not yet run**: needs keystore secrets and repository variables)
+- [x] Signed APK builds on GitHub Actions (first green run 2026-11-16). Keystore kept by Hassan at C:\Users\HP\Sidekick-signing (outside the repo) and as a GitHub secret.
 - [x] Demo accounts created (owner + member), public sign-up off, invites added. **Demo only: replace with real emails and separate strong passwords before any real data.**
 - [x] Migration 0002: task assignee/status/due date, explicit-only grants, lint clean; live checks 18/18 after applying
 - [x] Offline reading cache (per account, removed on sign-out) with "saved copy from HH:MM" banner
