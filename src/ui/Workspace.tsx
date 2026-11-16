@@ -13,6 +13,9 @@ import { FocusPanel, FocusPill } from './Focus.tsx';
 import { PrivateSetup, Unlock } from './Private.tsx';
 import { PrivateView } from './PrivateRoom.tsx';
 import { LinksStrip, type LinkRow } from './Links.tsx';
+import { SearchPanel } from './Search.tsx';
+import { openLink } from '../lib/links.ts';
+import type { Hit } from '../lib/search.ts';
 import { lock, storedKey } from '../lib/keystore.ts';
 import { loadPrivacyNotices, reveal, vaultRemote, type PrivacyNotice } from '../lib/data.ts';
 import { loadTimer, type Timer } from '../lib/focus.ts';
@@ -105,6 +108,32 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [prefill, setPrefill] = useState<Prefill>(null);
   const [timer, setTimer] = useState<Timer | null>(() => loadTimer(userId));
   const [focusOpen, setFocusOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [jump, setJump] = useState<{ kind: string; id: string } | null>(null);
+  // "/" or Ctrl/Cmd+K opens search from anywhere (not while typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.closest('input, textarea, select, [contenteditable]') !== null);
+      if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); setSearchOpen(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // After jumping to a task or note, bring it into view and light it up briefly.
+  useEffect(() => {
+    if (!jump) return;
+    if (jump.kind === 'client' || jump.kind === 'file') { const t = setTimeout(() => setJump(null), 800); return () => clearTimeout(t); }
+    const t = setTimeout(() => {
+      const el = document.getElementById(`item-${jump.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 1800);
+        setJump(null); // done: later refreshes must not scroll or flash again
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [jump, items]);
   useEffect(() => { if (timer) scheduleTimerAlarms(timer); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- re-arm the alarm after a restart
   const [requests, setRequests] = useState<DeletionRequest[]>([]);
   const [trash, setTrash] = useState<TrashedItem[]>([]);
@@ -294,6 +323,10 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         <span className="wordmark">Sidekick</span>
         <SyncPill sync={sync} waiting={pending.length} />
         <span className="grow" />
+        <button className="ghost search-btn" onClick={() => setSearchOpen(true)} aria-label="Search (press / or Ctrl K)">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden className="icon"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+          <span className="label-wide">Search</span>
+        </button>
         <FocusPill timer={timer} onOpen={() => setFocusOpen(true)} />
         <button className="ghost inbox-btn" aria-expanded={inboxOpen} aria-controls="inbox" onClick={() => setInboxOpen((o) => !o)}>
           <BellIcon />
@@ -303,6 +336,15 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         <AccountMenu email={email} onSignOut={signOut} />
       </header>
 
+      {searchOpen && <SearchPanel userId={userId} spaces={spaces} privateKey={privKey} onClose={() => setSearchOpen(false)} onPick={(h: Hit) => {
+        setSearchOpen(false);
+        if (h.kind === 'link' && h.extra && !h.trashed) { openLink(h.extra); return; }
+        if (h.kind === 'event') { setPage('calendar'); return; }
+        setSpaceId(h.space_id);
+        setPage('space');
+        if (spaces.find((s) => s.id === h.space_id)?.visibility === 'shared') setView(h.trashed ? 'trash' : h.kind === 'client' ? 'clients' : h.kind === 'file' ? 'files' : 'tasks');
+        setJump({ kind: h.kind, id: h.id });
+      }} />}
       {focusOpen && <FocusPanel userId={userId} timer={timer} setTimer={setTimer} queue={queue} nameOf={nameOf} online={sync.state !== 'offline'}
         tasks={tasks.filter((t) => t.status !== 'done' && t.version).map((t) => ({ id: t.id, title: t.title }))} onClose={() => setFocusOpen(false)} />}
       {inboxOpen && <Inbox items={inbox} push={push} notices={notices} nameOf={nameOf} onClose={() => setInboxOpen(false)}
@@ -415,7 +457,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
               ) : view === 'files' ? (
                 <FilesView spaceId={space.id} userId={userId} isOwner={isOwner} online={sync.state !== 'offline'} nameOf={nameOf}
                   tasks={rows.filter((r) => r.kind !== 'file' && r.version).map((r) => ({ id: r.id, title: r.title }))}
-                  uploads={uploads} refused={refused} refreshKey={filesKey}
+                  uploads={uploads} refused={refused} refreshKey={filesKey} focusId={jump?.kind === 'file' ? jump.id : null}
                   onPick={async (files, itemId) => { setRefused(await enqueue(userId, files, space.id, itemId ?? null)); setUploads(await listQueue(userId)); runUploads(); }}
                   onRetry={runUploads} onRemoveUpload={async (op) => { await removeFromQueue(userId, op); setUploads(await listQueue(userId)); }}
                   onRename={async (f, title, body) => { await queue({ op_id: crypto.randomUUID(), type: 'update', id: f.id, base_version: f.item_version, fields: { title, body } }); setFilesKey((k) => k + 1); }}
@@ -423,7 +465,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                   onAskDelete={async (f, reason) => { await requestDeletion(f.id, f.item_version, reason, 'delete', userId); await afterDeletion(); setFilesKey((k) => k + 1); }}
                   onTrash={async (f) => { await trashItem(f.id); await afterDeletion(); setFilesKey((k) => k + 1); }} />
               ) : view === 'clients' ? (
-                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} />
+                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} focusId={jump?.kind === 'client' ? jump.id : null} />
               ) : (<>
               {isOwner && <Approvals requests={requests} nameOf={nameOf} onDecide={async (r, ok) => { const out = await decideRequest(r.id, ok); await afterDeletion(); return out; }} />}
               <QuickAdd partnerName={partnerName} partnerId={partner?.id ?? null} userId={userId} onAdd={addItem} />
@@ -451,7 +493,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                 {notes.length === 0 ? <p className="quiet">Notes you add to {space.name} land here for both of you.</p> : (
                   <ul className="note-list">
                     {notes.map((n) => (
-                      <li key={n.id} className="note">
+                      <li key={n.id} id={`item-${n.id}`} className="note">
                         <h3>{n.title || 'Untitled'}</h3>
                         {n.body && <p>{n.body}</p>}
                         <p className="byline">{n.createdBy ? nameOf(n.createdBy) : 'You'}{n.updated_at ? `, ${when.format(new Date(n.updated_at))}` : ''}<SyncNote sync={n.sync} /></p>
@@ -525,7 +567,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
   const targetLabel = r.assignee === userId ? `Hand to ${nameOf(partner?.id ?? null)}` : r.assignee ? 'Take it back' : 'Claim it';
   const arriving = arrived?.id === r.id ? `arrive-${arrived.to}` : '';
   return (
-    <li className={`task ${side} ${done ? 'is-done' : ''} ${overdue ? 'is-late' : ''} ${arriving}`}>
+    <li id={`item-${r.id}`} className={`task ${side} ${done ? 'is-done' : ''} ${overdue ? 'is-late' : ''} ${arriving}`}>
       <button className="ring" aria-pressed={done} disabled={!synced}
         aria-label={done ? `Mark "${r.title}" not done` : `Mark "${r.title}" done`}
         title={synced ? undefined : 'Available once this task has synced'}

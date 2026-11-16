@@ -101,7 +101,7 @@ export function PrivateView({ space, name, items, pending, keyFor, queue, onLock
           {tasks.length === 0 ? <p className="quiet">Nothing here yet.</p> : (
             <ul className="vault-tasks">
               {tasks.map((t) => (
-                <li key={t.id} className={t.status === 'done' ? 'is-done' : ''}>
+                <li key={t.id} id={`item-${t.id}`} className={t.status === 'done' ? 'is-done' : ''}>
                   <button className="ring" aria-pressed={t.status === 'done'} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} disabled={!t.version}
                     onClick={() => queue({ op_id: crypto.randomUUID(), type: 'update', id: t.id, base_version: t.version, fields: { status: t.status === 'done' ? 'open' : 'done' } })}>
                     <svg viewBox="0 0 24 24" aria-hidden><circle cx="12" cy="12" r="10" /><path d="M7 12.5l3.2 3.2L17 9" /></svg>
@@ -122,7 +122,7 @@ export function PrivateView({ space, name, items, pending, keyFor, queue, onLock
           <h2 id="v-notes">Notes <span className="lane-count">{notes.length || ''}</span></h2>
           {notes.length === 0 ? <p className="quiet">Your first private note will appear here.</p> : (
             <ul className="vault-notes">{notes.map((n) => (
-              <li key={n.id} className="page">
+              <li key={n.id} id={`item-${n.id}`} className="page">
                 <h3>{n.title ?? 'Cannot be read on this device'}</h3>
                 {n.body && <p>{n.body}</p>}
                 <div className="page-foot">

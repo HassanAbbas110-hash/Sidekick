@@ -17,10 +17,10 @@ const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(ne
 
 type Props = {
   spaceId: string; userId: string; nameOf: (id: string | null) => string; pending: Op[];
-  queue: (op: Op) => Promise<void>; online: boolean;
+  queue: (op: Op) => Promise<void>; online: boolean; focusId?: string | null;
 };
 
-export function ClientsView({ spaceId, userId, nameOf, pending, queue, online }: Props) {
+export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, focusId }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -40,6 +40,7 @@ export function ClientsView({ spaceId, userId, nameOf, pending, queue, online }:
   }, [spaceId, userId, online]);
 
   useEffect(() => { reload(); }, [reload, pending.length]);
+  useEffect(() => { if (focusId) setOpenId(focusId); }, [focusId]);
 
   const owed = (id: string) => balances.filter((b) => b.client_id === id && b.outstanding_minor > 0);
   const shown = clients.filter((c) => stageFilter === 'active' ? !['lost', 'archived'].includes(c.stage) : c.stage === stageFilter);

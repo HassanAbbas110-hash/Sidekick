@@ -21,7 +21,7 @@ type Props = {
   onRename: (f: FileRow, title: string, body: string | null) => Promise<void>;
   requestFor: (id: string) => DeletionRequest | undefined;
   onAskDelete: (f: FileRow, reason: string) => Promise<void>; onTrash: (f: FileRow) => Promise<void>;
-  refreshKey: number;
+  refreshKey: number; focusId?: string | null;
 };
 
 export function FilesView(p: Props) {
@@ -48,6 +48,7 @@ export function FilesView(p: Props) {
     }
   }, [p.spaceId, p.userId, p.online]);
   useEffect(() => { reload(); }, [reload, p.refreshKey]);
+  useEffect(() => { if (p.focusId) setOpenId(p.focusId); }, [p.focusId]);
 
   const pending = p.uploads.filter((u) => u.space_id === p.spaceId);
   const open = files.find((f) => f.id === openId);

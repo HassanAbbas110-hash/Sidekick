@@ -7,6 +7,7 @@ import { ClientsView } from './ui/Clients.tsx';
 import { Approvals, TrashView } from './ui/Deletion.tsx';
 import { FilesView } from './ui/Files.tsx';
 import { LinksStrip } from './ui/Links.tsx';
+import { SearchPanel } from './ui/Search.tsx';
 import { CalendarView } from './ui/Calendar.tsx';
 import { FocusPanel } from './ui/Focus.tsx';
 import { PrivateSetup } from './ui/Private.tsx';
@@ -58,12 +59,20 @@ const EVENTS = [
   { id: 'e3', space_id: 's', kind: 'event', title: 'Work on: booking form', body: null, starts_at: at(1, 13), ends_at: at(1, 15), all_day: false, recur: null, task_id: 'a3', version: 1, created_by: 'me' },
   { id: 'e4', space_id: 's', kind: 'event', title: 'Kasi Coffee shoot', body: null, starts_at: at(3, 0), ends_at: at(4, 0), all_day: true, recur: null, task_id: null, version: 1, created_by: 'miki' },
 ];
-if (location.hash === '#clients' || location.hash === '#files' || location.hash === '#calendar' || location.hash === '#focus') {
+if (['#clients', '#files', '#calendar', '#focus', '#search'].includes(location.hash)) {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const table = url.pathname.match(/\/rest\/v1\/(\w+)/)?.[1];
     const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.pathname.endsWith('/rpc/search_all')) return json([
+      { kind: 'task', id: 'a1', space_id: 's', title: 'Approve homepage copy for Bright Dental', snippet: 'Miki left two options in the shared doc', extra: null, updated_at: at(0, 9), trashed: false, rank: 0 },
+      { kind: 'client', id: 'c1', space_id: 's', title: 'Bright Dental', snippet: 'Dr N. Khumalo, hello@brightdental.example', extra: 'client', updated_at: at(-1, 9), trashed: false, rank: 0 },
+      { kind: 'file', id: 'f1', space_id: 's', title: 'Bright Dental logo (final)', snippet: 'BD-logo-final.svg', extra: 'image/svg+xml', updated_at: at(-2, 9), trashed: false, rank: 0 },
+      { kind: 'link', id: 'l2', space_id: 's', title: 'Quote admin', snippet: 'https://brightdental.example/admin', extra: 'https://brightdental.example/admin', updated_at: at(-3, 9), trashed: false, rank: 1 },
+      { kind: 'note', id: 'n9', space_id: 's', title: 'Kickoff call notes', snippet: 'Bright Dental wants a booking form live before December, with SMS reminders for patients', extra: null, updated_at: at(-5, 9), trashed: false, rank: 1 },
+      { kind: 'note', id: 'n8', space_id: 's', title: 'Old pricing (Bright)', snippet: 'superseded', extra: null, updated_at: at(-30, 9), trashed: true, rank: 0 },
+    ]);
     if (url.pathname.endsWith('/rpc/busy_slots')) return json([{ user_id: 'miki', starts_at: at(0, 14), ends_at: at(0, 16), all_day: false, recur: null }, { user_id: 'miki', starts_at: at(-7, 18), ends_at: at(-7, 19), all_day: false, recur: { freq: 'weekly', byweekday: [2] } }]);
     if (url.pathname.endsWith('/rpc/focus_summaries')) return json([{ user_id: 'me', day: '', measured_seconds: 4800, adjusted_seconds: 0, sessions: 2, completed: 1, running: true }, { user_id: 'miki', day: '', measured_seconds: 2700, adjusted_seconds: 0, sessions: 1, completed: 1, running: false }]);
     if (table === 'focus_sessions') return json([{ id: 'fs1', mode: 'countdown', started_at: at(0, 7), ended_at: at(0, 7, 50), paused_seconds: 0, completed: true, adjust_seconds: 600, adjust_reason: 'Forgot to start the timer' }]);
@@ -112,6 +121,7 @@ const trashMode = location.hash === '#trash';
 const filesMode = location.hash === '#files';
 const calMode = location.hash === '#calendar';
 const focusMode = location.hash === '#focus';
+const searchMode = location.hash === '#search';
 const setupMode = location.hash === '#setup';
 const privMode = location.hash === '#private';
 // Genuinely encrypted demo rows, decrypted on screen with a key that exists only in this page.
@@ -141,6 +151,7 @@ createRoot(document.getElementById('root')!).render(
       <button className="ghost inbox-btn"><BellIcon /><span className="label-wide">Inbox</span><span className="count">2</span></button>
       <details className="account"><summary><span className="avatar">H</span></summary></details>
     </header>
+    {searchMode && <SearchPanel userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} privateKey={null} onPick={() => {}} onClose={() => {}} />}
     {focusMode && <FocusPanel userId={ME} timer={{ id: 't', mode: 'cycle', started_at: Date.now() - 31 * 60_000, paused_at: null, paused_ms: 0, planned_seconds: 1500, break_seconds: 300, label: 'Chapter 4 revision', task_id: null }}
       setTimer={() => {}} queue={async () => {}} nameOf={nameOf} tasks={[]} onClose={() => {}} online />}
     {inbox && <Inbox push="registered" onRead={async () => {}} onClose={() => {}} items={[

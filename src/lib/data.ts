@@ -210,3 +210,11 @@ export async function setPrivateTrashed(id: string, trashed: boolean) {
 export async function deletePrivateForGood(id: string) { check(await supabase.from('items').delete().eq('id', id)); }
 export const loadPrivateTrash = async (spaceId: string) =>
   check(await supabase.from('items').select('id, kind, title, deleted_at').eq('space_id', spaceId).not('deleted_at', 'is', null)) as { id: string; kind: string; title: string | null; deleted_at: string }[];
+
+// ---------- search ----------
+export async function searchShared(q: string, includeTrash: boolean) {
+  return check(await supabase.rpc('search_all', { p_q: q, p_include_trash: includeTrash, p_limit: 60 })) as {
+    kind: string; id: string; space_id: string; title: string | null; snippet: string | null; extra: string | null;
+    updated_at: string | null; trashed: boolean; rank: number;
+  }[];
+}
