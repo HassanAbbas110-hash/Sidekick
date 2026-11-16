@@ -51,7 +51,12 @@ export const clock = (ms: number) => {
   const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 };
-export const minutes = (s: number) => { const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
+/** Exact duration to the second, for records: "1 h 05 min 12 s", "25 min 03 s", "42 s". */
+export const exact = (secs: number) => {
+  const s = Math.max(0, Math.floor(secs)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60, p = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h} h ${p(m)} min ${p(r)} s` : m ? `${m} min ${p(r)} s` : `${r} s`;
+};
+export const minutes = (s: number) => { if (s < 60) return `${Math.max(0, Math.floor(s))} s`; const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
 
 const key = (userId: string) => `sidekick-timer-${userId}`;
 export function saveTimer(userId: string, t: Timer | null) {

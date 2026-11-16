@@ -88,3 +88,18 @@ test('timer display: countdowns round up, stopping records the right end and pau
   assert.equal(stopPoint(cd, T0 + 40 * 60_000).ended_at, T0 + 25 * 60_000);
   assert.equal(stopPoint(cd, T0 + 5 * 60_000).ended_at, T0 + 5 * 60_000, 'stopped early: ends now');
 });
+
+test('stopping: the clock freezes at the click, answering the question later adds nothing; records show seconds', async () => {
+  const { pause, stopPoint, exact, minutes, elapsedMs } = await import('../src/lib/focus.ts');
+  const T0 = Date.UTC(2026, 10, 16, 8);
+  const t: Timer = { id: 'x', mode: 'stopwatch', started_at: T0, paused_at: null, paused_ms: 0, planned_seconds: null, break_seconds: null, label: '', task_id: null };
+  const clicked = pause(t, T0 + 25 * 60_000 + 7_000); // Stop pressed at 25:07
+  assert.equal(elapsedMs(clicked, T0 + 40 * 60_000), 25 * 60_000 + 7_000, 'display stays frozen while the question is open');
+  const end = stopPoint(clicked, T0 + 40 * 60_000); // answered 15 minutes later
+  assert.equal(end.ended_at, T0 + 25 * 60_000 + 7_000);
+  assert.equal(end.paused_seconds, 0);
+  assert.equal(exact(1507), '25 min 07 s');
+  assert.equal(exact(3912), '1 h 05 min 12 s');
+  assert.equal(exact(42.9), '42 s');
+  assert.equal(minutes(42), '42 s', 'short totals are not shown as 0 min');
+});

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 // Dev-only design preview with fictional data (not part of the app build: vite builds index.html only).
 import { createRoot } from 'react-dom/client';
 import './styles.css';
@@ -15,6 +16,10 @@ import { PrivateView } from './ui/PrivateRoom.tsx';
 import { TodayView } from './ui/Today.tsx';
 import { WeekView } from './ui/Week.tsx';
 import { IconCalendar, IconLock, IconSearch, IconToday, IconWeek } from './ui/Icons.tsx';
+function FocusDemo() {
+  const [t, setT] = useState<import('./lib/focus.ts').Timer | null>(() => ({ id: 't', mode: 'cycle', started_at: Date.now() - 31 * 60_000, paused_at: null, paused_ms: 0, planned_seconds: 1500, break_seconds: 300, label: 'Chapter 4 revision', task_id: null }));
+  return <FocusPanel userId={ME} timer={t} setTimer={setT} queue={async () => {}} nameOf={nameOf} tasks={[]} onClose={() => {}} online />;
+}
 const nav = location.hash === '#today' ? 'today' : location.hash === '#week' ? 'week' : location.hash === '#calendar' ? 'calendar' : 'space';
 import { sealText } from './crypto/vault.ts';
 import type { Item } from './lib/data.ts';
@@ -175,8 +180,7 @@ createRoot(document.getElementById('root')!).render(
       <details className="account"><summary><span className="avatar">H</span></summary></details>
     </header>
     {searchMode && <SearchPanel userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} privateKey={null} onPick={() => {}} onClose={() => {}} />}
-    {focusMode && <FocusPanel userId={ME} timer={{ id: 't', mode: 'cycle', started_at: Date.now() - 31 * 60_000, paused_at: null, paused_ms: 0, planned_seconds: 1500, break_seconds: 300, label: 'Chapter 4 revision', task_id: null }}
-      setTimer={() => {}} queue={async () => {}} nameOf={nameOf} tasks={[]} onClose={() => {}} online />}
+    {focusMode && <FocusDemo />}
     {inbox && <Inbox push="registered" reminders={[demoReminder]} onCancelRemind={async () => {}} onRead={async () => {}} onClose={() => {}} items={[
       { id: 'n1', kind: 'task_assigned', title: 'Miki assigned you a task', body: 'Approve homepage copy for Bright Dental', item_id: null, created_at: soon(-1), read_at: null },
       { id: 'n2', kind: 'task_done', title: 'Miki completed a task', body: 'Collect testimonials', item_id: null, created_at: soon(-20), read_at: soon(-2) },

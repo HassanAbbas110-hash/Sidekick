@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { loadFocusSummaries, loadMySessions, type FocusSession, type FocusSummary } from '../lib/data.ts';
-import { clock, clockDown, cyclePhase, elapsedMs, looksForgotten, minutes, pause, remainingMs, resume, saveTimer, stopPoint, type Timer } from '../lib/focus.ts';
+import { clock, clockDown, cyclePhase, elapsedMs, exact, looksForgotten, minutes, pause, remainingMs, resume, saveTimer, stopPoint, type Timer } from '../lib/focus.ts';
 import { clearTimerAlarms, scheduleTimerAlarms } from '../lib/alarms.ts';
 import { dayKey, startOfDay } from '../lib/recur.ts';
 import type { Op } from '../sync/outbox.ts';
@@ -19,6 +19,8 @@ function useTick(active: boolean) {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
   }, [active]);
 }
+
+const stoppedAt = new Intl.DateTimeFormat('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Africa/Johannesburg' });
 
 /** A soft two-note chime, made on the spot (no sound file, works offline). */
 function chime() {
@@ -66,6 +68,7 @@ export function FocusPanel({ userId, timer, setTimer, queue, nameOf, tasks, onCl
   const [summaries, setSummaries] = useState<FocusSummary[]>([]);
   const [mine, setMine] = useState<FocusSession[]>([]);
   const [ending, setEnding] = useState(false);
+  const wasPaused = useRef(false);
 
   const reload = useCallback(async () => {
     if (!navigator.onLine) return;
@@ -108,14 +111,17 @@ export function FocusPanel({ userId, timer, setTimer, queue, nameOf, tasks, onCl
       <aside className="drawer focus-drawer" aria-label="Focus timer">
         <div className="drawer-head"><h2>Focus</h2><button className="ghost close" aria-label="Close" onClick={onClose}>✕</button></div>
 
-        {timer ? <Running timer={timer} ending={ending} setEnding={setEnding}
+        {timer ? <Running timer={timer} ending={ending}
+          // Stop freezes the clock right away; the question that follows is not counted as focus time.
+          onAskStop={() => { wasPaused.current = Boolean(timer.paused_at); if (!timer.paused_at) update(pause(timer)); setEnding(true); }}
+          onKeepGoing={() => { setEnding(false); if (!wasPaused.current) update(resume(timer)); }}
           onPause={() => update(pause(timer))} onResume={() => update(resume(timer))} onStop={stop} /> : <StartForm tasks={tasks} onStart={start} />}
 
         <section className="focus-today" aria-label="Today">
           <h3 className="drawer-sub">Today</h3>
-          <p>{me ? <>You: <b>{minutes(me.measured_seconds)}</b> measured, {me.sessions} session{me.sessions === 1 ? '' : 's'}, {me.completed} marked complete{me.adjusted_seconds ? `, plus ${minutes(me.adjusted_seconds)} added by hand` : ''}.</> : 'You have no sessions yet today.'}</p>
+          <p>{me ? <>You: <b>{exact(me.measured_seconds)}</b> measured, {me.sessions} session{me.sessions === 1 ? '' : 's'}, {me.completed} marked complete{me.adjusted_seconds ? `, plus ${minutes(me.adjusted_seconds)} added by hand` : ''}.</> : 'You have no sessions yet today.'}</p>
           {others.map((o) => (
-            <p key={o.user_id}>{nameOf(o.user_id)}: <b>{minutes(o.measured_seconds)}</b>, {o.sessions} session{o.sessions === 1 ? '' : 's'}, {o.completed} complete{o.running ? ', focusing now' : ''}.</p>
+            <p key={o.user_id}>{nameOf(o.user_id)}: <b>{exact(o.measured_seconds)}</b>, {o.sessions} session{o.sessions === 1 ? '' : 's'}, {o.completed} complete{o.running ? ', focusing now' : ''}.</p>
           ))}
           <p className="hint">Your partner sees only these totals and whether sessions were marked complete. What you were working on stays on this device. A running timer is not proof of work; it is a tool for you.</p>
           {!online && <p className="hint">Offline: totals update after you reconnect. The timer itself keeps running.</p>}
@@ -135,8 +141,8 @@ export function FocusPanel({ userId, timer, setTimer, queue, nameOf, tasks, onCl
   );
 }
 
-function Running({ timer, ending, setEnding, onPause, onResume, onStop }: {
-  timer: Timer; ending: boolean; setEnding: (b: boolean) => void; onPause: () => void; onResume: () => void; onStop: (completed: boolean) => Promise<void>;
+function Running({ timer, ending, onAskStop, onKeepGoing, onPause, onResume, onStop }: {
+  timer: Timer; ending: boolean; onAskStop: () => void; onKeepGoing: () => void; onPause: () => void; onResume: () => void; onStop: (completed: boolean) => Promise<void>;
 }) {
   const phase = timer.mode === 'cycle' ? cyclePhase(timer) : null;
   const total = timer.mode === 'countdown' ? (timer.planned_seconds ?? 1) * 1000 : phase ? ((phase.phase === 'focus' ? timer.planned_seconds : timer.break_seconds) ?? 1) * 1000 : 0;
@@ -154,7 +160,7 @@ function Running({ timer, ending, setEnding, onPause, onResume, onStop }: {
       </svg>
       <div className="dial-text" role="timer" aria-live="off">
         <span className="dial-big">{done ? 'Done' : big}</span>
-        <span className="dial-sub">{timer.paused_at ? 'Paused' : phase ? `${phase.phase === 'focus' ? 'Focus' : 'Break'}, ${phase.blocksDone} block${phase.blocksDone === 1 ? '' : 's'} done` : timer.mode === 'countdown' ? `of ${minutes(timer.planned_seconds ?? 0)}` : 'Stopwatch'}</span>
+        <span className="dial-sub">{ending ? `Stopped at ${stoppedAt.format(new Date(timer.paused_at ?? Date.now()))}` : timer.paused_at ? 'Paused' : phase ? `${phase.phase === 'focus' ? 'Focus' : 'Break'}, ${phase.blocksDone} block${phase.blocksDone === 1 ? '' : 's'} done` : timer.mode === 'countdown' ? `of ${minutes(timer.planned_seconds ?? 0)}` : 'Stopwatch'}</span>
         {timer.label && <span className="dial-label">{timer.label}</span>}
       </div>
       {looksForgotten(timer) && <p className="field-error">This has been running for over 12 hours. If you forgot to stop it, stop it now and correct the time afterwards.</p>}
@@ -162,12 +168,12 @@ function Running({ timer, ending, setEnding, onPause, onResume, onStop }: {
       {ending ? (
         <div className="ending">
           <p><b>Did you finish what you set out to do?</b> This is your own answer; the timer cannot know.</p>
-          <div className="row-start"><button className="primary" onClick={() => onStop(true)}>Yes, mark complete</button><button onClick={() => onStop(false)}>Not this time</button><button className="ghost" onClick={() => setEnding(false)}>Keep going</button></div>
+          <div className="row-start"><button className="primary" onClick={() => onStop(true)}>Yes, mark complete</button><button onClick={() => onStop(false)}>Not this time</button><button className="ghost" onClick={onKeepGoing}>Keep going</button></div>
         </div>
       ) : (
         <div className="row-start center">
           {timer.paused_at ? <button className="primary" onClick={onResume}>Resume</button> : <button onClick={onPause}>Pause</button>}
-          <button className={done ? 'primary' : ''} onClick={() => setEnding(true)}>Stop</button>
+          <button className={done ? 'primary' : ''} onClick={onAskStop}>Stop</button>
         </div>
       )}
     </div>
@@ -207,11 +213,11 @@ function SessionRow({ s, onAdjust }: { s: FocusSession; onAdjust: (secs: number,
   const [open, setOpen] = useState(false);
   const [mins, setMins] = useState(Math.round(s.adjust_seconds / 60));
   const [reason, setReason] = useState(s.adjust_reason ?? '');
-  const t = new Intl.DateTimeFormat('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg' });
+  const t = new Intl.DateTimeFormat('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Africa/Johannesburg' });
   const measured = Math.max(0, (new Date(s.ended_at!).getTime() - new Date(s.started_at).getTime()) / 1000 - s.paused_seconds);
   return (
     <li>
-      <div className="version-top"><b>{t.format(new Date(s.started_at))} to {t.format(new Date(s.ended_at!))}</b><span className="quiet">{minutes(measured)} measured</span></div>
+      <div className="version-top"><b>{t.format(new Date(s.started_at))} to {t.format(new Date(s.ended_at!))}</b><span className="quiet">{exact(measured)} measured{s.paused_seconds ? `, ${exact(s.paused_seconds)} paused` : ''}</span></div>
       <p className="byline"><span>{s.completed ? 'Marked complete' : 'Not marked complete'}</span>{s.adjust_seconds !== 0 && <span>Corrected by hand: {s.adjust_seconds > 0 ? '+' : ''}{minutes(Math.abs(s.adjust_seconds))}{s.adjust_seconds < 0 ? ' removed' : ''} ({s.adjust_reason})</span>}</p>
       {open ? (
         <form className="ask-delete" onSubmit={(e) => { e.preventDefault(); onAdjust(mins * 60, reason.trim()).then(() => setOpen(false)); }}>
