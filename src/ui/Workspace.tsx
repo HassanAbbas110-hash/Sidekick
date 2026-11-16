@@ -10,7 +10,8 @@ import { Approvals, DeleteControls, TrashView } from './Deletion.tsx';
 import { FilesView } from './Files.tsx';
 import { CalendarView, type Prefill } from './Calendar.tsx';
 import { FocusPanel, FocusPill } from './Focus.tsx';
-import { PrivateSetup, PrivateView, Unlock } from './Private.tsx';
+import { PrivateSetup, Unlock } from './Private.tsx';
+import { PrivateView } from './PrivateRoom.tsx';
 import { lock, storedKey } from '../lib/keystore.ts';
 import { loadPrivacyNotices, reveal, vaultRemote, type PrivacyNotice } from '../lib/data.ts';
 import { loadTimer, type Timer } from '../lib/focus.ts';
@@ -357,7 +358,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
               onDone={async (k) => { setPrivKey(k); setVaultExists(true); await refresh(); setPage('space'); }} />
           ) : page === 'space' && space?.visibility === 'private' ? (
             privKey ? (
-              <PrivateView space={space} name={privateNames[space.id] ?? 'Private'} items={items} keyFor={privKey} queue={queue}
+              <PrivateView space={space} name={privateNames[space.id] ?? 'Private'} items={items} pending={pending} keyFor={privKey} queue={queue}
                 isOwner={isOwnerNow} partnerName={partnerName} reload={reloadItems}
                 onLock={async () => { await lock(userId); setPrivKey(null); }} />
             ) : <Unlock userId={userId} onUnlocked={(k) => setPrivKey(k)} />

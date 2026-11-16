@@ -8,7 +8,8 @@ import { Approvals, TrashView } from './ui/Deletion.tsx';
 import { FilesView } from './ui/Files.tsx';
 import { CalendarView } from './ui/Calendar.tsx';
 import { FocusPanel } from './ui/Focus.tsx';
-import { PrivateSetup, PrivateView } from './ui/Private.tsx';
+import { PrivateSetup } from './ui/Private.tsx';
+import { PrivateView } from './ui/PrivateRoom.tsx';
 import { sealText } from './crypto/vault.ts';
 import type { Item } from './lib/data.ts';
 import type { DeletionRequest } from './lib/data.ts';
@@ -156,7 +157,7 @@ createRoot(document.getElementById('root')!).render(
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
         {setupMode ? <PrivateSetup userId={ME} isOwner={false} ownerName="Hassan" partnerName="Hassan" onDone={() => {}} />
-        : privMode ? <PrivateView space={{ id: 'p', name: 'x', visibility: 'private', owner_id: ME }} name="Private" items={privItems} keyFor={demoKey!}
+        : privMode ? <PrivateView space={{ id: 'p', name: 'x', visibility: 'private', owner_id: ME }} name="Private" items={privItems} pending={[]} keyFor={demoKey!}
             queue={async () => {}} onLock={() => {}} isOwner={false} partnerName="Hassan" reload={async () => {}} />
         : calMode ? <CalendarView userId={ME} privateKey={null} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} nameOf={nameOf} partnerName="Miki"
           queue={async () => {}} pendingCount={0} online prefill={null} onPrefillUsed={() => {}} /> : filesMode ? <FilesView spaceId="s" userId={ME} isOwner={!asMember} online nameOf={nameOf} tasks={[...mine, ...theirs].map((t) => ({ id: t.id, title: t.title }))}
