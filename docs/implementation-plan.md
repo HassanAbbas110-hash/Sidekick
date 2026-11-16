@@ -25,7 +25,11 @@ Progress (2026-11-16):
 - [x] Migration 0002: task assignee/status/due date, explicit-only grants, lint clean; live checks 18/18 after applying
 - [x] Offline reading cache (per account, removed on sign-out) with "saved copy from HH:MM" banner
 - [x] Task assignment UI: responsible person, due date (Africa/Johannesburg display), status, My/Their tasks filters, overdue flag
-- [ ] Private spaces + vault unlock, inbox, push, deletion request/approval UI, comments
+- [x] Inbox + push queue (migration 0003): one row per important shared change for the other person, deduped, private items excluded, per-user read state; device tokens move with sign-in and are removed on sign-out
+- [x] send-push Edge Function (FCM HTTP v1, key only in server secrets) deployed; pg_cron runs it every minute while anything is queued (0004); app nudges it after each sync
+- [x] App: inbox panel with unread badge, Android push registration and notification channel
+- [ ] Hassan: Firebase service-account key into Supabase secrets; google-services.json into GitHub secret; then real-phone notification matrix (A7)
+- [ ] Private spaces + vault unlock, deletion request/approval UI, comments
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 

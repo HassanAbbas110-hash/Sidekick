@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase.ts';
-import { createSharedSpace, loadItems, loadProfiles, loadSpaces, sendOp, type Item, type Profile, type Space, type TaskStatus } from '../lib/data.ts';
+import { createSharedSpace, loadInbox, loadItems, loadProfiles, loadSpaces, markRead, sendOp, type Item, type Notification, type Profile, type Space, type TaskStatus } from '../lib/data.ts';
+import { disablePush, enablePush, kickPushQueue, type PushStatus } from '../lib/push.ts';
 import { dropCache, withCache } from '../lib/cache.ts';
 import { Outbox, type Fields, type Op } from '../sync/outbox.ts';
 
@@ -56,6 +57,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [savedCopy, setSavedCopy] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [inbox, setInbox] = useState<Notification[]>([]);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [push, setPush] = useState<PushStatus | null>(null);
 
   // Each account has its own outbox database on this device.
   useEffect(() => {
@@ -81,6 +85,18 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     }
   }, [userId]);
 
+  const reloadInbox = useCallback(async () => {
+    try {
+      setInbox((await withCache(userId, 'inbox', loadInbox)).value);
+    } catch {
+      /* inbox stays as last shown; the banner already explains offline state */
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    enablePush(() => { setInboxOpen(true); reloadInbox(); }).then(setPush).catch(() => setPush('error'));
+  }, [reloadInbox]);
+
   const reloadItems = useCallback(async () => {
     if (!spaceId) return setItems([]);
     try {
@@ -101,24 +117,27 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     const r = await box.flush(sendOp);
     setPending(await box.pending());
     setSync(r.failed ? { state: navigator.onLine ? 'failed' : 'offline', error: r.failed.error } : { state: 'synced' });
-    if (r.results.length) await reloadItems();
+    if (r.results.length) {
+      kickPushQueue();
+      await reloadItems();
+    }
   }, [box, reloadItems]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { refresh(); reloadInbox(); }, [refresh, reloadInbox]);
   useEffect(() => { reloadItems(); }, [reloadItems]);
   useEffect(() => {
     flush();
-    const onOnline = () => { refresh(); reloadItems(); flush(); };
+    const onOnline = () => { refresh(); reloadItems(); reloadInbox(); flush(); };
     const onOffline = () => setSync({ state: 'offline' });
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    const timer = setInterval(() => { flush(); reloadItems(); }, 30_000); // shortcut: polling; realtime updates come with the inbox slice
+    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); }, 30_000); // shortcut: polling; realtime updates come with the inbox slice
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       clearInterval(timer);
     };
-  }, [flush, refresh, reloadItems]);
+  }, [flush, refresh, reloadItems, reloadInbox]);
 
   const nameOf = (id: string | null) => {
     if (!id) return 'Unassigned';
@@ -142,6 +161,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   async function signOut() {
     const waiting = box ? (await box.pending()).length : 0;
     if (waiting && !confirm(`${waiting} change(s) have not reached the server yet. They stay saved on this device for this account and will sync when you sign in again here. Sign out anyway?`)) return;
+    await disablePush().catch(() => {}); // stop this phone receiving this account's pushes
     await supabase.auth.signOut();
     await dropCache(userId); // the read copy is re-downloadable; unsent changes (outbox) are kept
   }
@@ -150,6 +170,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const rows = buildRows(items, pending, spaceId, sync.state === 'failed').filter((r) =>
     filter === 'all' ? true : r.kind === 'task' && (filter === 'mine' ? r.assignee === userId : r.assignee !== null && r.assignee !== userId));
   const others = profiles.filter((p) => p.id !== userId);
+  const unread = inbox.filter((n) => !n.read_at).length;
 
   return (
     <div className="shell">
@@ -158,10 +179,16 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         <strong className="brand">Sidekick</strong>
         <span className={`chip chip-${sync.state}`} role="status" title={sync.error}>{SYNC_LABEL[sync.state]}{pending.length ? ` · ${pending.length} waiting` : ''}</span>
         <span className="spacer" />
+        <button className="bell" aria-expanded={inboxOpen} aria-controls="inbox" onClick={() => setInboxOpen((o) => !o)}>
+          Inbox{unread ? <span className="badge" aria-label={`${unread} unread`}>{unread}</span> : null}
+        </button>
         <span className="muted small hide-narrow">{email}</span>
         <button onClick={signOut}>Sign out</button>
       </header>
 
+      {inboxOpen && (
+        <Inbox items={inbox} push={push} onRead={async (ids) => { await markRead(ids).catch(() => {}); await reloadInbox(); }} />
+      )}
       {savedCopy && <p className="banner warn" role="status">Showing the copy saved on this device at {time.format(new Date(savedCopy))}. It may be out of date.</p>}
       {loadError && <p className="banner error" role="alert">{loadError}</p>}
       {sync.state === 'failed' && <p className="banner error" role="alert">A change could not be saved on the server: {sync.error}. It is kept on this device.</p>}
@@ -317,5 +344,38 @@ function Composer({ me, others, onAdd }: { me: string; others: Profile[]; onAdd:
       )}
       <button className="primary">Add {kind}</button>
     </form>
+  );
+}
+
+const PUSH_NOTE: Record<PushStatus, string> = {
+  unsupported: 'Pop-up notifications are on the Android app; here, updates appear in this inbox.',
+  denied: 'Notifications are turned off for Sidekick in your phone settings. Updates still arrive here.',
+  registered: 'This phone receives pop-up notifications.',
+  error: 'This phone could not register for notifications. Updates still arrive here.',
+};
+
+function Inbox({ items, push, onRead }: { items: Notification[]; push: PushStatus | null; onRead: (ids: string[]) => Promise<void> }) {
+  const unreadIds = items.filter((n) => !n.read_at).map((n) => n.id);
+  return (
+    <section id="inbox" className="inbox card" aria-label="Inbox">
+      <div className="inbox-head">
+        <h2>Inbox</h2>
+        <button disabled={!unreadIds.length} onClick={() => onRead(unreadIds)}>Mark all read</button>
+      </div>
+      {push && <p className="hint">{PUSH_NOTE[push]}</p>}
+      {items.length === 0 ? <p className="muted">No updates yet.</p> : (
+        <ul className="inbox-list">
+          {items.map((n) => (
+            <li key={n.id} className={n.read_at ? 'read' : 'unread'}>
+              <button className="inbox-item" onClick={() => !n.read_at && onRead([n.id])}>
+                <strong>{n.title}</strong>
+                {n.body && <span>{n.body}</span>}
+                <span className="muted small">{when.format(new Date(n.created_at))}{n.read_at ? '' : ' · new'}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

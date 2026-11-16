@@ -10,8 +10,8 @@ Status labels: Not started · Implemented · Automated-test verified · Real-bro
 | A4 | Busy/session projections leak nothing | 3 | busy_slots() | tests/privacy.test.ts, tests/live/privacy-live.sql | npm test; npm run test:live (2026-11-16, 18/18) | Automated-test verified + live Supabase verified (DB level) (Busy only; session summaries and push payloads not built) |
 | A5 | Shared deletion needs Hassan, revalidated | 1 | items_guard, decide_deletion | tests/privacy.test.ts, tests/live/privacy-live.sql | npm test; npm run test:live (2026-11-16, 18/18) | Automated-test verified + live Supabase verified (DB level) (DB level; revision purge and folder cascade not built) |
 | A6 | Redacted private-deletion notice | 3 | notify_private_deletion | tests/privacy.test.ts, tests/live/privacy-live.sql | npm test; npm run test:live (2026-11-16, 18/18) | Automated-test verified + live Supabase verified (DB level) (DB level; onboarding explanation not built) |
-| A7 | Notification matrix on real phones | 1/4 | push, inbox | — | — | Not started |
-| A8 | Reminder edits cancel stale sends; no duplicates | 3 | reminders | — | — | Not started |
+| A7 | Notification matrix on real phones | 1/4 | 0003_notifications.sql, functions/send-push, src/lib/push.ts | tests/notifications.test.ts, tests/fcm.test.ts | npm test | Automated-test verified (inbox rules, dedupe, per-user read, claim-once); push not yet delivered to a real phone |
+| A8 | Reminder edits cancel stale sends; no duplicates | 3 | notifications dedupe_key, claim_pushes | tests/notifications.test.ts | npm test | Partly automated-test verified (replay + two workers send once); deadline reminders not built |
 | A9 | Offline replay exactly once; conflicts preserved | 1 | src/sync/outbox.ts, apply_op | tests/sync.test.ts, tests/live/privacy-live.sql | npm test; npm run test:live (2026-11-16, 18/18) | Automated-test verified + live Supabase verified (DB level) (simulated IndexedDB; no real device restart yet; logout flow not built) |
 | A10 | Ledger R1700/R500/R200/reversal | 3 | money | — | — | Not started |
 | A11 | Recurrence periods, month-end, timezone | 3 | recurrence | — | — | Not started |

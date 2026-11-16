@@ -36,3 +36,14 @@ export async function createSharedSpace(name: string, userId: string) {
 export async function sendOp(op: Op): Promise<OpResult> {
   return check(await supabase.rpc('apply_op', { op })) as OpResult;
 }
+
+export type Notification = { id: string; kind: string; title: string; body: string | null; item_id: string | null; created_at: string; read_at: string | null };
+
+// shortcut: newest 50; older history stays in the database (no automatic deletion).
+export const loadInbox = async () =>
+  check(await supabase.from('notifications').select('id, kind, title, body, item_id, created_at, read_at')
+    .order('created_at', { ascending: false }).limit(50)) as Notification[];
+
+export async function markRead(ids: string[]) {
+  if (ids.length) check(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null));
+}
