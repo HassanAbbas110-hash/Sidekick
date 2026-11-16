@@ -1134,3 +1134,8 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 .note .thread-form textarea { background: #fffaf2; border-color: #d8d0c2; color: var(--ink); }
 .note-cmt { justify-self: start; display: inline-flex; align-items: center; gap: 6px; color: #5a536e; }
 .note-cmt:hover:not(:disabled) { background: #e9e2d5 !important; color: var(--ink); }
+
+/* repeating tasks */
+.repeat-fact { color: var(--ivory); font-size: 0.82rem; }
+.due-pick select { width: auto; min-height: 40px; }
+.repeat-hint { flex-basis: 100%; padding-left: 10px; }

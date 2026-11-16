@@ -40,3 +40,10 @@ test('reminder presets: evening only before 17:00, due-morning only when it adds
   assert.equal(fromLocalInput('2026-11-16T08:05')!.getTime(), fromWall(2026, 10, 16, 8, 5).getTime());
   assert.equal(fromLocalInput('nonsense'), null);
 });
+
+test('repeat choices round-trip to the stored rule', async () => {
+  const { REPEATS, repeatKey, repeatLabel } = await import('../src/lib/repeat.ts');
+  for (const o of REPEATS) assert.equal(repeatKey(o.recur), o.key);
+  assert.equal(repeatLabel({ freq: 'weekly', byweekday: [1, 2, 3, 4, 5] }), 'Every weekday');
+  assert.equal(repeatKey({ freq: 'daily', interval: 3 }), 'custom');
+});

@@ -8,7 +8,7 @@ export type Space = { id: string; name: string; visibility: 'shared' | 'private'
 export type Item = {
   id: string; space_id: string; kind: string; title: string | null; body: string | null;
   version: number; created_by: string; updated_at: string;
-  assignee: string | null; status: TaskStatus | null; due_at: string | null; url?: string | null;
+  assignee: string | null; status: TaskStatus | null; due_at: string | null; url?: string | null; recur?: import('./recur.ts').Recur | null;
 };
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Profile = { id: string; email: string; role: 'owner' | 'member'; display_name: string | null };
@@ -26,7 +26,7 @@ export const loadSpaces = async () =>
 // shortcut: newest 200 only; Stage 2 adds pagination and search.
 export const loadItems = async (spaceId: string) =>
   check(await supabase.from('items')
-    .select('id, space_id, kind, title, body, version, created_by, updated_at, assignee, status, due_at, url')
+    .select('id, space_id, kind, title, body, version, created_by, updated_at, assignee, status, due_at, url, recur')
     .eq('space_id', spaceId).is('deleted_at', null)
     .order('updated_at', { ascending: false }).limit(200)) as Item[];
 

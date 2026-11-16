@@ -20,6 +20,8 @@ import { IconCalendar, IconLock, IconSearch, IconSpaces, IconToday, IconWeek } f
 import { RemindControl, reminderTime, BellSmall } from './Remind.tsx';
 import { loadReminders, loadCommentCounts, type Reminder } from '../lib/data.ts';
 import { Thread, CommentIcon } from './Thread.tsx';
+import { REPEATS, repeatKey, repeatLabel } from '../lib/repeat.ts';
+import type { Recur } from '../lib/recur.ts';
 import type { ReactNode } from 'react';
 import { openLink } from '../lib/links.ts';
 import type { Hit } from '../lib/search.ts';
@@ -35,7 +37,7 @@ type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: s
 type RowSync = 'synced' | 'pending' | 'failed';
 export type Row = {
   id: string; kind: string; title: string | null; body: string | null; createdBy: string;
-  assignee: string | null; status: TaskStatus | null; due_at: string | null; version?: number; sync: RowSync; updated_at?: string;
+  assignee: string | null; status: TaskStatus | null; due_at: string | null; version?: number; sync: RowSync; updated_at?: string; recur?: Recur | null;
 };
 type Side = 'you' | 'them';
 
@@ -56,7 +58,7 @@ function buildRows(items: Item[], pending: Op[], spaceId: string | null, failed:
     .map((op): Row => {
       const f = { ...op.fields, ...edits.get(op.id) };
       return { id: op.id, kind: op.kind, title: f.title ?? null, body: f.body ?? null, createdBy: '', assignee: f.assignee ?? null,
-        status: (f.status as TaskStatus) ?? null, due_at: f.due_at ?? null, sync: mark };
+        status: (f.status as TaskStatus) ?? null, due_at: f.due_at ?? null, sync: mark, recur: (f.recur as Recur | null | undefined) ?? null };
     });
   const known = new Set(creates.map((c) => c.id));
   return [
@@ -66,7 +68,7 @@ function buildRows(items: Item[], pending: Op[], spaceId: string | null, failed:
       return { id: i.id, kind: i.kind, title: e?.title !== undefined ? e.title : i.title, body: e?.body !== undefined ? e.body : i.body,
         createdBy: i.created_by, assignee: e?.assignee !== undefined ? e.assignee : i.assignee,
         status: (e?.status as TaskStatus | undefined) ?? i.status, due_at: e?.due_at !== undefined ? e.due_at : i.due_at,
-        version: i.version, sync: e ? mark : 'synced', updated_at: i.updated_at };
+        version: i.version, sync: e ? mark : 'synced', updated_at: i.updated_at, recur: e?.recur !== undefined ? (e.recur as Recur | null) : i.recur ?? null };
     }),
   ];
 }
@@ -656,6 +658,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
           {r.due_at && <span className={overdue ? 'due late' : 'due'}>{overdue ? 'Overdue, was due ' : 'Due '}{when.format(new Date(r.due_at))}</span>}
           {r.status && r.status !== 'open' && r.status !== 'done' && <span className="state">{STATUS_LABEL[r.status]}</span>}
           {deletion.requestFor(r.id) && <span className="del-flag">Deletion requested</span>}
+          {r.recur && !done && <span className="repeat-fact" title={repeatLabel(r.recur)}>↻ {repeatLabel(r.recur)}</span>}
           {comments > 0 && <span className="comment-fact"><CommentIcon />{comments}</span>}
           {reminder && !done && <span className="remind-fact"><BellSmall />{reminderTime(reminder.remind_at)}</span>}
           <SyncNote sync={r.sync} />
@@ -672,6 +675,15 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
               </label>
               {(target || !r.assignee) && (
                 <button className="handover" disabled={!synced} onClick={() => onHandOver(r, target)}>{targetLabel}</button>
+              )}
+              {synced && r.status !== 'done' && (
+                <label>
+                  <span>Repeat</span>
+                  <select value={repeatKey(r.recur)} onChange={(e) => onEdit(r, { recur: REPEATS.find((o) => o.key === e.target.value)?.recur ?? null })}>
+                    {REPEATS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    {repeatKey(r.recur) === 'custom' && <option value="custom" disabled>Custom</option>}
+                  </select>
+                </label>
               )}
               {synced && r.status !== 'done' && <button className="ghost" onClick={() => onSchedule(r)}>Schedule time</button>}
             </div>
@@ -694,6 +706,7 @@ export function QuickAdd({ userId, partnerId, partnerName, onAdd }: { userId: st
   const [body, setBody] = useState('');
   const [who, setWho] = useState<string>(userId);
   const [due, setDue] = useState('');
+  const [repeat, setRepeat] = useState('none');
   const [expanded, setExpanded] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -701,11 +714,12 @@ export function QuickAdd({ userId, partnerId, partnerName, onAdd }: { userId: st
     e.preventDefault();
     if (!title.trim()) return input.current?.focus();
     const f: Fields = { title: title.trim(), body: body.trim() || null };
-    if (kind === 'task') Object.assign(f, { status: 'open', assignee: who || null, due_at: due ? new Date(due).toISOString() : null });
+    if (kind === 'task') Object.assign(f, { status: 'open', assignee: who || null, due_at: due ? new Date(due).toISOString() : null, recur: REPEATS.find((o) => o.key === repeat)?.recur ?? null });
     await onAdd(kind, f);
     setTitle('');
     setBody('');
     setDue('');
+    setRepeat('none');
     input.current?.focus();
   }
 
@@ -739,6 +753,11 @@ export function QuickAdd({ userId, partnerId, partnerName, onAdd }: { userId: st
                 <span className="opt-label">Due</span>
                 <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
               </label>
+              <label className="due-pick">
+                <span className="opt-label">Repeat</span>
+                <select value={repeat} onChange={(e) => setRepeat(e.target.value)}>{REPEATS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select>
+              </label>
+              {repeat !== 'none' && <p className="hint repeat-hint">When it is ticked off, the next one appears{due ? '' : ', counted from when it is done'}.</p>}
             </div>
           )}
         </div>
