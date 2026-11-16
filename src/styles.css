@@ -411,3 +411,33 @@ label { font-weight: 550; }
   .views { gap: 16px; overflow-x: auto; }
   .views button { white-space: nowrap; }
 }
+
+/* ---------- deletion lifecycle ---------- */
+.danger-quiet { color: var(--mist); justify-self: start; }
+.danger-quiet:hover:not(:disabled) { color: var(--coral); }
+.del-controls { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.del-pending, .del-flag { color: var(--coral); font-size: 0.85rem; }
+.del-flag::before, .del-pending::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); margin-right: 6px; vertical-align: 2px; }
+.ask-delete, .purge { display: grid; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--ink); border: 1px solid var(--line); }
+.ask-delete label, .purge label { display: grid; gap: 6px; font-size: 0.9rem; }
+.note .ask-delete { color: var(--ivory); }
+.note .danger-quiet { color: #6b6481; min-height: 36px; padding: 0; }
+
+/* Hassan's decision queue: a coral seam on the left, because it is waiting on him */
+.approvals { display: grid; gap: 10px; padding: 16px 18px; border-radius: var(--r-lg); background: var(--plum); border: 1px solid color-mix(in srgb, var(--coral) 35%, var(--line)); box-shadow: inset 3px 0 0 var(--coral); }
+.approvals h2 { font-size: 1.2rem; font-stretch: 85%; letter-spacing: -0.015em; }
+.approvals ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.approvals li { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.approvals li:first-child { border-top: 0; padding-top: 0; }
+.appr-why { color: #d9d2e6; font-style: italic; }
+.appr-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.trash { display: grid; gap: 14px; }
+.trash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.trash-row { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r-md); border: 1px dashed var(--line); }
+.trash-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.trash-main b { color: var(--mist); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--mist) 50%, transparent); }
+.trash-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button.danger { color: var(--coral); }
+button.danger-solid { background: var(--coral); color: var(--ink); border: 0; font-weight: 650; }
+.purge p { color: #d9d2e6; }

@@ -6,6 +6,8 @@ import { dropCache, withCache } from '../lib/cache.ts';
 import { Outbox, type Fields, type Op } from '../sync/outbox.ts';
 import { Mark } from './Mark.tsx';
 import { ClientsView } from './Clients.tsx';
+import { Approvals, DeleteControls, TrashView } from './Deletion.tsx';
+import { decideRequest, loadRequests, loadTrash, purgeItem, requestDeletion, restoreItem, trashItem, type DeletionRequest, type TrashedItem } from '../lib/data.ts';
 
 type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: string };
 type RowSync = 'synced' | 'pending' | 'failed';
@@ -74,7 +76,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [inboxOpen, setInboxOpen] = useState(false);
   const [push, setPush] = useState<PushStatus | null>(null);
   const [side, setSide] = useState<Side>('you');
-  const [view, setView] = useState<'tasks' | 'clients'>('tasks');
+  const [view, setView] = useState<'tasks' | 'clients' | 'trash'>('tasks');
+  const [requests, setRequests] = useState<DeletionRequest[]>([]);
+  const [trash, setTrash] = useState<TrashedItem[]>([]);
   const [arrived, setArrived] = useState<{ id: string; to: Side } | null>(null);
 
   // Each account has its own outbox database on this device.
@@ -125,6 +129,15 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     }
   }, [spaceId, userId]);
 
+  const reloadDeletion = useCallback(async () => {
+    if (!spaceId) return;
+    try {
+      const [r, t] = await Promise.all([withCache(userId, `requests:${spaceId}`, () => loadRequests(spaceId)), withCache(userId, `trash:${spaceId}`, () => loadTrash(spaceId))]);
+      setRequests(r.value);
+      setTrash(t.value);
+    } catch { /* shown as last known; deletion actions themselves need a connection */ }
+  }, [spaceId, userId]);
+
   const flush = useCallback(async () => {
     if (!box) return;
     setPending(await box.pending());
@@ -140,20 +153,20 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   }, [box, reloadItems]);
 
   useEffect(() => { refresh(); reloadInbox(); }, [refresh, reloadInbox]);
-  useEffect(() => { reloadItems(); }, [reloadItems]);
+  useEffect(() => { reloadItems(); reloadDeletion(); }, [reloadItems, reloadDeletion]);
   useEffect(() => {
     flush();
     const onOnline = () => { refresh(); reloadItems(); reloadInbox(); flush(); };
     const onOffline = () => setSync({ state: 'offline' });
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); }, 30_000); // shortcut: polling; realtime later
+    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); reloadDeletion(); }, 30_000); // shortcut: polling; realtime later
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       clearInterval(timer);
     };
-  }, [flush, refresh, reloadItems, reloadInbox]);
+  }, [flush, refresh, reloadItems, reloadInbox, reloadDeletion]);
 
   const partner = profiles.find((p) => p.id !== userId);
   const partnerName = partner ? partner.display_name || cap(partner.email.split('@')[0]) : 'Your partner';
@@ -183,6 +196,15 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     return editItem(row, { assignee: to });
   }
 
+  const isOwner = profiles.find((p) => p.id === userId)?.role === 'owner';
+  const afterDeletion = async () => { await Promise.all([reloadItems(), reloadDeletion()]); };
+  const deletion = {
+    isOwner,
+    requestFor: (id: string) => requests.find((r) => r.item_id === id),
+    onAskDelete: async (row: Row, reason: string) => { await requestDeletion(row.id, row.version!, reason, 'delete', userId); await afterDeletion(); },
+    onTrash: async (row: Row) => { await trashItem(row.id); await afterDeletion(); },
+  };
+
   async function signOut() {
     const waiting = box ? (await box.pending()).length : 0;
     if (waiting && !confirm(`${waiting} change(s) have not reached the server yet. They stay on this device for this account and sync when you sign in here again. Sign out anyway?`)) return;
@@ -201,7 +223,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const active = (list: Row[]) => list.filter((t) => t.status !== 'done');
   const unread = inbox.filter((n) => !n.read_at).length;
 
-  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived };
+  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion };
 
   return (
     <div className="app">
@@ -261,11 +283,18 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
               <div className="views" role="tablist" aria-label="What to show">
                 <button role="tab" aria-selected={view === 'tasks'} className={view === 'tasks' ? 'on' : ''} onClick={() => setView('tasks')}>Tasks and notes</button>
                 <button role="tab" aria-selected={view === 'clients'} className={view === 'clients' ? 'on' : ''} onClick={() => setView('clients')}>Clients and money</button>
+                <button role="tab" aria-selected={view === 'trash'} className={view === 'trash' ? 'on' : ''} onClick={() => setView('trash')}>Trash{trash.length ? ` (${trash.length})` : ''}</button>
               </div>
 
-              {view === 'clients' ? (
+              {view === 'trash' ? (
+                <TrashView items={trash} isOwner={isOwner} requests={requests} nameOf={nameOf}
+                  onAskRestore={async (t, reason) => { await requestDeletion(t.id, t.version, reason, 'restore', userId); await afterDeletion(); }}
+                  onRestore={async (t) => { await restoreItem(t.id); await afterDeletion(); }}
+                  onPurge={async (t) => { await purgeItem(t.id); await afterDeletion(); }} />
+              ) : view === 'clients' ? (
                 <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} />
               ) : (<>
+              {isOwner && <Approvals requests={requests} nameOf={nameOf} onDecide={async (r, ok) => { const out = await decideRequest(r.id, ok); await afterDeletion(); return out; }} />}
               <QuickAdd partnerName={partnerName} partnerId={partner?.id ?? null} userId={userId} onAdd={addItem} />
 
               <div className="side-switch" role="tablist" aria-label="Whose tasks">
@@ -295,6 +324,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                         <h3>{n.title || 'Untitled'}</h3>
                         {n.body && <p>{n.body}</p>}
                         <p className="byline">{n.createdBy ? nameOf(n.createdBy) : 'You'}{n.updated_at ? `, ${when.format(new Date(n.updated_at))}` : ''}<SyncNote sync={n.sync} /></p>
+                        {n.version && <DeleteControls isOwner={isOwner} pending={deletion.requestFor(n.id)}
+                          onAsk={(reason) => deletion.onAskDelete(n, reason)} onTrash={() => deletion.onTrash(n)} />}
                       </li>
                     ))}
                   </ul>
@@ -328,6 +359,10 @@ type CardProps = {
   userId: string; partner: Profile | undefined; nameOf: (id: string | null) => string;
   onEdit: (row: Row, f: Fields) => Promise<void>; onHandOver: (row: Row, to: string | null) => Promise<void>;
   arrived: { id: string; to: Side } | null;
+  deletion: {
+    isOwner: boolean; requestFor: (id: string) => DeletionRequest | undefined;
+    onAskDelete: (row: Row, reason: string) => Promise<void>; onTrash: (row: Row) => Promise<void>;
+  };
 };
 
 export function Lane({ side, title, rows, empty, ...card }: { side: Side; title: string; rows: Row[]; empty: string } & CardProps) {
@@ -349,7 +384,7 @@ export function Lane({ side, title, rows, empty, ...card }: { side: Side; title:
   );
 }
 
-export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived }: { row: Row; side: Side | 'loose' } & CardProps) {
+export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion }: { row: Row; side: Side | 'loose' } & CardProps) {
   const [open, setOpen] = useState(false);
   const done = r.status === 'done';
   const overdue = isOverdue(r);
@@ -370,6 +405,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
         <div className="task-facts">
           {r.due_at && <span className={overdue ? 'due late' : 'due'}>{overdue ? 'Overdue, was due ' : 'Due '}{when.format(new Date(r.due_at))}</span>}
           {r.status && r.status !== 'open' && r.status !== 'done' && <span className="state">{STATUS_LABEL[r.status]}</span>}
+          {deletion.requestFor(r.id) && <span className="del-flag">Deletion requested</span>}
           <SyncNote sync={r.sync} />
         </div>
         {open && (
@@ -387,6 +423,8 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
               )}
             </div>
             <p className="byline">Added by {r.createdBy ? nameOf(r.createdBy) : 'you'}</p>
+            {synced && <DeleteControls isOwner={deletion.isOwner} pending={deletion.requestFor(r.id)}
+              onAsk={(reason) => deletion.onAskDelete(r, reason)} onTrash={() => deletion.onTrash(r)} />}
           </div>
         )}
       </div>

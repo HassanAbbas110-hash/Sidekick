@@ -100,3 +100,33 @@ export async function updateClient(c: Client, f: Partial<Client>): Promise<Clien
   const rows = check(await supabase.from('clients').update(f).eq('id', c.id).eq('version', c.version).select(CLIENT_COLS)) as Client[];
   return rows[0] ?? null;
 }
+
+// ---------- deletion lifecycle (online-only, authoritative on the server) ----------
+export type DeletionRequest = {
+  id: string; item_id: string; item_version: number; reason: string; requested_by: string; status: string;
+  action: 'delete' | 'restore'; created_at: string; items: { title: string | null; kind: string; space_id: string } | null;
+};
+export type TrashedItem = { id: string; kind: string; title: string | null; body: string | null; version: number; deleted_at: string; created_by: string };
+
+export async function loadRequests(spaceId: string) {
+  const rows = check(await supabase.from('deletion_requests')
+    .select('id, item_id, item_version, reason, requested_by, status, action, created_at, items(title, kind, space_id)')
+    .eq('status', 'pending').order('created_at')) as unknown as DeletionRequest[];
+  return rows.filter((r) => r.items?.space_id === spaceId);
+}
+
+export const loadTrash = async (spaceId: string) =>
+  check(await supabase.from('items').select('id, kind, title, body, version, deleted_at, created_by')
+    .eq('space_id', spaceId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false })) as TrashedItem[];
+
+export async function requestDeletion(itemId: string, version: number, reason: string, action: 'delete' | 'restore', userId: string) {
+  check(await supabase.from('deletion_requests').insert({ item_id: itemId, item_version: version, reason, action, requested_by: userId }));
+}
+
+export const decideRequest = async (id: string, approve: boolean) =>
+  check(await supabase.rpc('decide_deletion', { p_request: id, p_approve: approve })) as 'approved' | 'rejected' | 'stale';
+
+export async function trashItem(id: string) { check(await supabase.rpc('trash_item', { p_item: id })); }
+export async function purgeItem(id: string) { check(await supabase.rpc('purge_item', { p_item: id, p_confirm: 'DELETE' })); }
+/** Hassan restoring directly from the trash (the database allows this for the owner only). */
+export async function restoreItem(id: string) { check(await supabase.from('items').update({ deleted_at: null }).eq('id', id)); }

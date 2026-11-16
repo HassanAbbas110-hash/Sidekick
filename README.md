@@ -35,6 +35,7 @@ The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabas
 - This repo is separate from WebRift, 7 Waves and Google Reviewer Management.
 
 ## Changelog
+- 0.0.8 (2026-11-16) — Deletion approvals: requests, decision panel, trash, restore, permanent deletion; 50 tests.
 - 0.0.7 (2026-11-16) — Clients, lead pipeline and money ledger (charges, payments, reversals, agreements, monthly charges); 44 tests, 22 live checks.
 - 0.0.6 (2026-11-16) — Redesign: two-lane "your side / their side" workspace, handover, inbox drawer, new sign-in; bundled font.
 - 0.0.5 (2026-11-16) — Inbox, push queue, send-push function (FCM), every-minute schedule; 34 tests.

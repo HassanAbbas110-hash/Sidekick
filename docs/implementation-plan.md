@@ -30,7 +30,8 @@ Progress (2026-11-16):
 - [x] App: inbox panel with unread badge, Android push registration and notification channel
 - [ ] Hassan: Firebase service-account key into Supabase secrets; google-services.json into GitHub secret; then real-phone notification matrix (A7)
 - [x] Visual direction pulled forward at Hassan's request (2026-11-16): "two sides of one S" — gold = you, ivory = your partner, a seam between lanes; tasks live on the side of whoever is responsible and travel across on handover. Bricolage Grotesque bundled for offline use. Dark-first. Checked at 1360px and 390px with fictional data (design-preview.html, dev only); not yet reviewed on Hassan's phone.
-- [ ] Private spaces + vault unlock, deletion request/approval UI, comments
+- [x] Deletion lifecycle (0006 + screens): ask to delete with reason, Hassan's decision panel, stale-version refusal, trash with restore / ask to restore, permanent deletion only by Hassan from the trash with typed DELETE; content-free purge log; inbox text scrubbed. Online-only by design.
+- [ ] Private spaces + vault unlock, comments
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 

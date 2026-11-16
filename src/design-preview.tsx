@@ -4,6 +4,8 @@ import './styles.css';
 import { Mark } from './ui/Mark.tsx';
 import { BellIcon, Inbox, Lane, QuickAdd, SyncPill, TaskCard, type Row } from './ui/Workspace.tsx';
 import { ClientsView } from './ui/Clients.tsx';
+import { Approvals, TrashView } from './ui/Deletion.tsx';
+import type { DeletionRequest } from './lib/data.ts';
 
 // Fictional fixtures answered in place of the database, so the clients screens can be reviewed without signing in.
 const FIX: Record<string, unknown[]> = {
@@ -63,7 +65,11 @@ const theirs = [
 const loose = [t('c1', 'Find a photographer for the 7 Waves shoot', null, { createdBy: ME })];
 const nameOf = (id: string | null) => (id === ME ? 'You' : id === MIKI ? 'Miki' : 'Anyone');
 const partner = { id: MIKI, email: 'miki@gmail.com', role: 'member' as const, display_name: null };
-const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null };
+const asMember = location.search.includes('member');
+const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, reason: 'Kasi Coffee sent the files on WhatsApp already, this is a duplicate.', requested_by: MIKI, status: 'pending', action: 'delete', created_at: soon(-2), items: { title: 'Collect logo files from Kasi Coffee', kind: 'task', space_id: 's' } };
+const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
+const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion };
+const trashMode = location.hash === '#trash';
 const inbox = location.hash === '#inbox';
 const clientsMode = location.hash === '#clients';
 
@@ -89,7 +95,11 @@ createRoot(document.getElementById('root')!).render(
         <section className="intro"><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
-        {clientsMode ? <ClientsView spaceId="s" userId={ME} nameOf={nameOf} pending={[]} queue={async () => {}} online /> : <>
+        {trashMode ? <TrashView isOwner={!asMember} requests={[]} nameOf={nameOf} onAskRestore={async () => {}} onRestore={async () => {}} onPurge={async () => {}} items={[
+          { id: 't1', kind: 'note', title: 'Old pricing sheet (2025)', body: null, version: 2, deleted_at: soon(-30), created_by: MIKI },
+          { id: 't2', kind: 'task', title: 'Call printer about flyers', body: null, version: 4, deleted_at: soon(-80), created_by: ME },
+        ]} /> : clientsMode ? <ClientsView spaceId="s" userId={ME} nameOf={nameOf} pending={[]} queue={async () => {}} online /> : <>
+        {!asMember && <Approvals requests={[fakeReq]} nameOf={nameOf} onDecide={async () => 'approved'} />}
         <QuickAdd userId={ME} partnerId={MIKI} partnerName="Miki" onAdd={async () => {}} />
         <div className="side-switch"><button className="on you">Your side <b>3</b></button><button className="them">Miki <b>2</b></button></div>
         <div className="lanes" data-side="you">
