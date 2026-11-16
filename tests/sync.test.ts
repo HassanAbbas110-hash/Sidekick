@@ -88,3 +88,14 @@ test('sync respects privacy and rejects unknown fields', async () => {
   await assert.rejects(applyAs(db, HASSAN)({ op_id: randomUUID(), type: 'update', id: his, base_version: 1, fields: { deleted_at: null } as never }), /unsupported_field/);
   await assert.rejects(applyAs(db, MARKETER)({ op_id: randomUUID(), type: 'create', id: randomUUID(), space_id: HASSAN_PRIVATE, kind: 'note', fields: {} }), /row-level security/);
 });
+
+test('A2: the marketer assigns a task to Hassan; he sees assignee, status and due date', async () => {
+  const db = await freshDb();
+  const id = randomUUID();
+  await applyAs(db, MARKETER)({ op_id: randomUUID(), type: 'create', id, space_id: SHARED, kind: 'task',
+    fields: { title: 'Approve homepage copy', assignee: HASSAN, status: 'open', due_at: '2026-11-20T15:00:00Z' } });
+  await applyAs(db, HASSAN)({ op_id: randomUUID(), type: 'update', id, base_version: 1, fields: { status: 'done' } });
+  const [row] = await as(db, HASSAN, `select assignee, status, created_by, updated_by, due_at = '2026-11-20T15:00:00Z' as due_ok from items where id = $1`, [id]);
+  assert.deepEqual(row, { assignee: HASSAN, status: 'done', created_by: MARKETER, updated_by: HASSAN, due_ok: true });
+  await assert.rejects(applyAs(db, MARKETER)({ op_id: randomUUID(), type: 'update', id, base_version: 2, fields: { status: 'finished' } }), /check constraint/);
+});

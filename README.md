@@ -35,6 +35,7 @@ The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabas
 - This repo is separate from WebRift, 7 Waves and Google Reviewer Management.
 
 ## Changelog
+- 0.0.4 (2026-11-16) — Task assignment/status/due date, offline reading cache, explicit-only DB grants; 25 tests.
 - 0.0.3 (2026-11-16) — App shell (sign-in, shared spaces, notes/tasks via outbox), Capacitor Android project, icon/splash, APK workflow.
 - 0.0.2 (2026-11-16) — Core schema with RLS, idempotent sync, outbox, on-device encryption; 21 tests.
 - 0.0.1 (2026-11-16) — Project created; Stage 0 docs; proposed logo.

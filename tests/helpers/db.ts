@@ -15,7 +15,7 @@ const migrations = new URL('../../supabase/migrations/', import.meta.url);
 export async function freshDb(): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(`
-    create role anon nologin; create role authenticated nologin;
+    create role anon nologin; create role authenticated nologin; create role service_role nologin;
     grant usage on schema public to anon, authenticated;
     create schema auth; grant usage on schema auth to anon, authenticated;
     create table auth.users (id uuid primary key, email text not null);

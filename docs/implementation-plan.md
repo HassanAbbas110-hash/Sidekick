@@ -21,8 +21,11 @@ Progress (2026-11-16):
 - [x] Sign-in screen against the real Supabase project (wrong password shows a clear error; checked in a real browser)
 - [x] Shared spaces list, create shared space, add note/task through the outbox with per-item sync status (code written; **not yet exercised with real accounts**)
 - [x] GitHub Actions workflow for a signed APK (**not yet run**: needs keystore secrets and repository variables)
-- [ ] Hassan: switch off public sign-up, create both accounts, add both emails to `invites`
-- [ ] Offline reading cache, private spaces + vault unlock, task assignment, inbox, push, deletion UI
+- [x] Demo accounts created (owner + member), public sign-up off, invites added. **Demo only: replace with real emails and separate strong passwords before any real data.**
+- [x] Migration 0002: task assignee/status/due date, explicit-only grants, lint clean; live checks 18/18 after applying
+- [x] Offline reading cache (per account, removed on sign-out) with "saved copy from HH:MM" banner
+- [x] Task assignment UI: responsible person, due date (Africa/Johannesburg display), status, My/Their tasks filters, overdue flag
+- [ ] Private spaces + vault unlock, inbox, push, deletion request/approval UI, comments
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 
