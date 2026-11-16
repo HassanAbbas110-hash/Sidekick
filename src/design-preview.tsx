@@ -15,6 +15,7 @@ import { PrivateSetup } from './ui/Private.tsx';
 import { PrivateView } from './ui/PrivateRoom.tsx';
 import { TodayView } from './ui/Today.tsx';
 import { Thread } from './ui/Thread.tsx';
+import { ShareSheet } from './ui/ShareSheet.tsx';
 import { WeekView } from './ui/Week.tsx';
 import { IconCalendar, IconLock, IconSearch, IconToday, IconWeek } from './ui/Icons.tsx';
 function FocusDemo() {
@@ -69,7 +70,7 @@ const EVENTS = [
   { id: 'e3', space_id: 's', kind: 'event', title: 'Work on: booking form', body: null, starts_at: at(1, 13), ends_at: at(1, 15), all_day: false, recur: null, task_id: 'a3', version: 1, created_by: 'me' },
   { id: 'e4', space_id: 's', kind: 'event', title: 'Kasi Coffee shoot', body: null, starts_at: at(3, 0), ends_at: at(4, 0), all_day: true, recur: null, task_id: null, version: 1, created_by: 'miki' },
 ];
-if (['#clients', '#files', '#calendar', '#focus', '#search', '#today', '#week', '#thread'].includes(location.hash)) {
+if (['#clients', '#files', '#calendar', '#focus', '#search', '#today', '#week', '#thread', '#share'].includes(location.hash)) {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
@@ -187,6 +188,11 @@ createRoot(document.getElementById('root')!).render(
     </header>
     {searchMode && <SearchPanel userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} privateKey={null} onPick={() => {}} onClose={() => {}} />}
     {focusMode && <FocusDemo />}
+    {location.hash === '#share' && <ShareSheet userId={ME} spaceId="s" onClose={() => {}} onSave={async () => {}}
+      spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }, { id: 's7', name: '7 Waves', visibility: 'shared', owner_id: null }]}
+      incoming={location.search.includes('files')
+        ? { url: null, title: 'Shared item', body: null, refused: [], files: [new File([new Uint8Array(240000)], 'Signed-quote-BD.pdf', { type: 'application/pdf' }), new File([new Uint8Array(1800000)], 'IMG_2231.jpg', { type: 'image/jpeg' })] }
+        : { url: 'https://www.behance.net/gallery/123/coffee-branding', title: 'Coffee branding ideas for Kasi', body: null, files: [], refused: [] }} />}
     {inbox && <Inbox push="registered" reminders={[demoReminder]} onCancelRemind={async () => {}} onRead={async () => {}} onClose={() => {}} items={[
       { id: 'n1', kind: 'task_assigned', title: 'Miki assigned you a task', body: 'Approve homepage copy for Bright Dental', item_id: null, created_at: soon(-1), read_at: null },
       { id: 'n2', kind: 'task_done', title: 'Miki completed a task', body: 'Collect testimonials', item_id: null, created_at: soon(-20), read_at: soon(-2) },

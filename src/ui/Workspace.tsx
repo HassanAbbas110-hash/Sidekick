@@ -21,6 +21,8 @@ import { RemindControl, reminderTime, BellSmall } from './Remind.tsx';
 import { loadReminders, loadCommentCounts, type Reminder } from '../lib/data.ts';
 import { Thread, CommentIcon } from './Thread.tsx';
 import { REPEATS, repeatKey, repeatLabel } from '../lib/repeat.ts';
+import { clearShareCache, onShare, takeShare, type Incoming } from '../lib/share.ts';
+import { ShareSheet, type ShareChoice } from './ShareSheet.tsx';
 import type { Recur } from '../lib/recur.ts';
 import type { ReactNode } from 'react';
 import { openLink } from '../lib/links.ts';
@@ -95,6 +97,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [threadKey, setThreadKey] = useState(0);
   const [live, setLive] = useState(false);
+  const [incoming, setIncoming] = useState<Incoming | null>(null);
+  useEffect(() => onShare(async () => { const s = await takeShare(); if (s) setIncoming(s); }), []);
   const [liveKey, setLiveKey] = useState(0); // bumps when the other person changes something
   const [pending, setPending] = useState<Op[]>([]);
   const [sync, setSync] = useState<SyncState>({ state: navigator.onLine ? 'synced' : 'offline' });
@@ -415,6 +419,22 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
       }} />}
       {focusOpen && <FocusPanel userId={userId} timer={timer} setTimer={setTimer} queue={queue} nameOf={nameOf} online={sync.state !== 'offline'}
         tasks={tasks.filter((t) => t.status !== 'done' && t.version).map((t) => ({ id: t.id, title: t.title }))} onClose={() => setFocusOpen(false)} />}
+      {incoming && <ShareSheet incoming={incoming} spaces={spaces} spaceId={spaceId} userId={userId} onClose={() => { setIncoming(null); clearShareCache(); }}
+        onSave={async (c: ShareChoice) => {
+          if (c.kind === 'files') {
+            setRefused(await enqueue(userId, c.files, c.spaceId, null, c.clientId));
+            setUploads(await listQueue(userId));
+            runUploads();
+          } else {
+            const fields: Fields = c.kind === 'link' ? { url: c.url, title: c.title, body: c.body }
+              : c.kind === 'task' ? { title: c.title, body: [c.body, c.url].filter(Boolean).join('\n') || null, status: 'open', assignee: userId }
+              : { title: c.title, body: [c.body, c.url].filter(Boolean).join('\n') || null };
+            await queue({ op_id: crypto.randomUUID(), type: 'create', id: crypto.randomUUID(), space_id: c.spaceId, kind: c.kind, fields });
+          }
+          await clearShareCache(); // the upload queue keeps its own copy
+          setIncoming(null);
+          setSpaceId(c.spaceId); setPage('space'); setView(c.kind === 'files' ? 'files' : 'tasks');
+        }} />}
       {inboxOpen && <Inbox items={inbox} push={push} notices={notices} nameOf={nameOf} onClose={() => setInboxOpen(false)} reminders={shownReminders} onCancelRemind={onCancelRemind}
         onRead={async (ids) => { await markRead(ids).catch(() => {}); await reloadInbox(); }} />}
 

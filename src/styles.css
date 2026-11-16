@@ -1155,3 +1155,22 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 .client-files { display: grid; gap: 12px; padding: 18px 0 6px; border-top: 1px solid var(--line); }
 .client-files h3 { font-size: 1.2rem; font-stretch: 85%; }
 .client-files .gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+/* share to sidekick */
+.share-sheet { gap: 14px; }
+.share-url { color: var(--gold); overflow-wrap: anywhere; font-size: 0.9rem; padding: 10px 12px; border-radius: var(--r-sm); background: var(--ink); }
+.share-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.share-files li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--r-sm); background: var(--ink); }
+.share-files li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-files .tile-ext { font-size: 1rem; }
+.share-spaces { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.share-spaces legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.share-spaces button { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 6px; }
+.share-spaces button.on { border-color: var(--gold-deep); background: var(--plum-2); }
+.share-spaces button.on .mono { background: var(--gold-grad); color: var(--ink); border-color: transparent; }
+
+/* layering: panels and search sit above the phone tab bar; the spaces sheet stays just under it */
+.scrim { z-index: 14; }
+.drawer { z-index: 15; }
+.search { z-index: 16; }
+.scrim.sheet-scrim { z-index: 11; }
