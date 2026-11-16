@@ -10,7 +10,8 @@ Stages follow spec §18. A stage does not start until the previous gate is revie
 - [x] Privacy option chosen: encrypt on device (architecture.md §3)
 - [ ] Hassan approves overall architecture
 - [ ] Supabase project (free) + Firebase project (FCM) created by Hassan
-- [ ] Proofs 1–4 (architecture.md §7)
+- [x] Proofs without accounts: DB privacy/deletion rules, outbox exactly-once, on-device encryption (21 automated tests)
+- [ ] Proofs needing accounts/devices: real Supabase re-run, FCM push to phone, Capacitor offline restart, private file storage
 
 ## Stage 1 — secure vertical slice
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.

@@ -55,7 +55,7 @@ Options:
 Design to prove in Stage 0:
 - Each user generates a random 256-bit data key on first login. It is wrapped by a key derived from their passphrase (PBKDF2-SHA256, high iteration count, or Argon2 if a vetted WASM build is used) and stored server-side only in wrapped form.
 - A one-time recovery key is shown to the user at setup for them to keep offline. Without the passphrase or the recovery key, private data is unrecoverable. Neither Hassan nor the server can reset it.
-- Ciphertext is AES-256-GCM with a random 96-bit IV per record or file. Record id and version are bound as associated data, so swapping ciphertexts between rows fails to decrypt.
+- Ciphertext is AES-256-GCM with a random 96-bit IV per record or file. Item id and field name are bound as associated data, so moving ciphertext to another row or field fails to decrypt. (Version is not bound: that would force re-encrypting every field on each edit.)
 - Metadata that stays visible to the infrastructure owner: private row existence, owner, timestamps, sizes and fixed categories. Busy times and session durations are shared by design anyway.
 - Changing the passphrase re-wraps the data key only. It does not re-encrypt the data.
 - The marketer's onboarding must explain the recovery-key duty and what metadata remains visible.
@@ -90,9 +90,10 @@ Design to prove in Stage 0:
 
 Nothing paid is enabled without Hassan's explicit approval.
 
-## 7. Stage 0 proofs still to run (not done)
+## 7. Stage 0 proofs
 
-1. Capacitor APK that opens offline, edits a note, restarts, and replays the outbox exactly once.
+1. Outbox exactly-once logic and conflict preservation: **automated-test verified** (`tests/sync.test.ts`, IndexedDB via fake-indexeddb, PGlite). Still to do: the same on a real Capacitor APK that is restarted offline.
 2. FCM push to a real phone with the app swiped away. Record the result per Android state.
-3. RLS test: user B fetching user A's private row/file by id → rejected (automated SQL test).
-4. Signed private-file download via short-lived URL; expired URL rejected.
+3. Database privacy and deletion rules: **automated-test verified** (`tests/privacy.test.ts`) on PGlite with stand-in auth. Still to do: re-run against a real Supabase project. Private *file* storage rules are not built yet.
+4. Signed private-file download via short-lived URL; expired URL rejected. Not started (needs Supabase Storage).
+5. On-device encryption: **automated-test verified** in Node (`tests/vault.test.ts`). Still to do: run in the Android WebView and measure unlock time (PBKDF2 at 600k iterations) on a real phone.

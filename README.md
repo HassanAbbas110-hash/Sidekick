@@ -2,7 +2,17 @@
 
 A private, offline-capable organiser for Hassan and his marketer: shared business work (WebRift, 7 Waves planning), private personal work, and study. Browser on laptop, signed APK on Android.
 
-**Status: Stage 0 (design and feasibility). No application code yet.** Nothing here is deployed or device-verified.
+**Status: Stage 0 (design and feasibility).** Database rules, sync outbox and on-device encryption exist as tested building blocks. There is no app UI yet, and nothing is deployed or device-verified.
+
+## Run the tests
+Needs Node 24+.
+
+```bash
+npm install
+npm test
+```
+
+The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabase auth. They touch no real database.
 
 - Specification: [docs/specification.md](docs/specification.md)
 - Architecture decision (proposed): [docs/architecture.md](docs/architecture.md)
@@ -16,4 +26,5 @@ A private, offline-capable organiser for Hassan and his marketer: shared busines
 - This repo is separate from WebRift, 7 Waves and Google Reviewer Management.
 
 ## Changelog
+- 0.0.2 (2026-11-16) — Core schema with RLS, idempotent sync, outbox, on-device encryption; 21 tests.
 - 0.0.1 (2026-11-16) — Project created; Stage 0 docs; proposed logo.
