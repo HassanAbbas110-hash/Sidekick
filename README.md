@@ -11,6 +11,8 @@ npm install
 npm run dev
 ```
 
+**Live web app:** https://hassanabbas110-hash.github.io/Sidekick/ (invite-only sign-in; redeployed automatically on every push to main by `.github/workflows/pages.yml`).
+
 ## Run the tests
 Needs Node 24+.
 
