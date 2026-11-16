@@ -18,7 +18,9 @@ import { TodayView } from './Today.tsx';
 import { WeekView } from './Week.tsx';
 import { IconCalendar, IconLock, IconSearch, IconSpaces, IconToday, IconWeek } from './Icons.tsx';
 import { RemindControl, reminderTime, BellSmall } from './Remind.tsx';
-import { loadReminders, type Reminder } from '../lib/data.ts';
+import { loadReminders, loadCommentCounts, type Reminder } from '../lib/data.ts';
+import { Thread, CommentIcon } from './Thread.tsx';
+import type { ReactNode } from 'react';
 import { openLink } from '../lib/links.ts';
 import type { Hit } from '../lib/search.ts';
 import { lock, storedKey } from '../lib/keystore.ts';
@@ -88,6 +90,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [threadKey, setThreadKey] = useState(0);
   const [pending, setPending] = useState<Op[]>([]);
   const [sync, setSync] = useState<SyncState>({ state: navigator.onLine ? 'synced' : 'offline' });
   const [savedCopy, setSavedCopy] = useState<string | null>(null);
@@ -188,6 +192,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     try {
       const r = await withCache(userId, `items:${spaceId}`, () => loadItems(spaceId));
       setItems(r.value);
+      withCache(userId, `comment-counts:${spaceId}`, () => loadCommentCounts(spaceId)).then((c) => setCommentCounts(c.value)).catch(() => {});
+      setThreadKey((k) => k + 1);
       setSavedCopy((cur) => (r.fromCache ? r.savedAt : cur));
     } catch (e) {
       setItems([]);
@@ -340,8 +346,12 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     args: { p_id: reminderFor(itemId)?.id ?? crypto.randomUUID(), p_item: itemId, p_at: at.toISOString(), p_note: note } });
   const onCancelRemind = (id: string) => queue({ op_id: crypto.randomUUID(), type: 'call', fn: 'cancel_reminder', label: 'Cancel reminder', args: { p_id: id } });
 
+  const commentCount = (id: string) => (commentCounts[id] ?? 0)
+    + pending.filter((o) => o.type === 'call' && o.fn === 'add_comment' && o.args.p_item === id).length;
+  const renderThread = (id: string): ReactNode => <Thread itemId={id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} refreshKey={threadKey} />;
+
   const onSchedule = (row: Row) => { if (!space) return; setPrefill({ space_id: space.id, task_id: row.id, title: `Work on: ${row.title ?? 'task'}` }); setPage('calendar'); };
-  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind };
+  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind, commentCount, renderThread };
 
   return (
     <div className="app">
@@ -535,6 +545,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                         <h3>{n.title || 'Untitled'}</h3>
                         {n.body && <p>{n.body}</p>}
                         <p className="byline">{n.createdBy ? nameOf(n.createdBy) : 'You'}{n.updated_at ? `, ${when.format(new Date(n.updated_at))}` : ''}<SyncNote sync={n.sync} /></p>
+                        {n.version && space.visibility === 'shared' && <NoteThread count={commentCount(n.id)}>{renderThread(n.id)}</NoteThread>}
                         {n.version && <DeleteControls isOwner={isOwner} pending={deletion.requestFor(n.id)}
                           onAsk={(reason) => deletion.onAskDelete(n, reason)} onTrash={() => deletion.onTrash(n)} />}
                       </li>
@@ -563,6 +574,14 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   );
 }
 
+function NoteThread({ count, children }: { count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (<>
+    <button className="ghost small-btn note-cmt" aria-expanded={open} onClick={() => setOpen((o) => !o)}><CommentIcon />{open ? 'Hide comments' : count ? `${count} comment${count === 1 ? '' : 's'}` : 'Comment'}</button>
+    {open && children}
+  </>);
+}
+
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function SyncPill({ sync, waiting }: { sync: SyncState; waiting: number }) {
@@ -586,6 +605,8 @@ type CardProps = {
   reminderFor?: (itemId: string) => Reminder | undefined;
   onRemind?: (itemId: string, at: Date, note: string | null) => Promise<void>;
   onCancelRemind?: (id: string) => Promise<void>;
+  commentCount?: (itemId: string) => number;
+  renderThread?: (itemId: string) => ReactNode;
   deletion: {
     isOwner: boolean; requestFor: (id: string) => DeletionRequest | undefined;
     onAskDelete: (row: Row, reason: string) => Promise<void>; onTrash: (row: Row) => Promise<void>;
@@ -611,7 +632,7 @@ export function Lane({ side, title, rows, empty, ...card }: { side: Side; title:
   );
 }
 
-export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind }: { row: Row; side: Side | 'loose' } & CardProps) {
+export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind, commentCount, renderThread }: { row: Row; side: Side | 'loose' } & CardProps) {
   const [open, setOpen] = useState(false);
   const done = r.status === 'done';
   const overdue = isOverdue(r);
@@ -620,6 +641,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
   const targetLabel = r.assignee === userId ? `Hand to ${nameOf(partner?.id ?? null)}` : r.assignee ? 'Take it back' : 'Claim it';
   const arriving = arrived?.id === r.id ? `arrive-${arrived.to}` : '';
   const reminder = reminderFor?.(r.id);
+  const comments = commentCount?.(r.id) ?? 0;
   return (
     <li id={`item-${r.id}`} className={`task ${side} ${done ? 'is-done' : ''} ${overdue ? 'is-late' : ''} ${arriving}`}>
       <button className="ring" aria-pressed={done} disabled={!synced}
@@ -634,6 +656,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
           {r.due_at && <span className={overdue ? 'due late' : 'due'}>{overdue ? 'Overdue, was due ' : 'Due '}{when.format(new Date(r.due_at))}</span>}
           {r.status && r.status !== 'open' && r.status !== 'done' && <span className="state">{STATUS_LABEL[r.status]}</span>}
           {deletion.requestFor(r.id) && <span className="del-flag">Deletion requested</span>}
+          {comments > 0 && <span className="comment-fact"><CommentIcon />{comments}</span>}
           {reminder && !done && <span className="remind-fact"><BellSmall />{reminderTime(reminder.remind_at)}</span>}
           <SyncNote sync={r.sync} />
         </div>
@@ -654,6 +677,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
             </div>
             {synced && !done && onRemind && onCancelRemind && <RemindControl due={r.due_at} current={reminder}
               onSet={(at, note) => onRemind(r.id, at, note)} onCancel={() => (reminder ? onCancelRemind(reminder.id) : Promise.resolve())} />}
+            {synced && renderThread?.(r.id)}
             <p className="byline">Added by {r.createdBy ? nameOf(r.createdBy) : 'you'}</p>
             {synced && <DeleteControls isOwner={deletion.isOwner} pending={deletion.requestFor(r.id)}
               onAsk={(reason) => deletion.onAskDelete(r, reason)} onTrash={() => deletion.onTrash(r)} />}

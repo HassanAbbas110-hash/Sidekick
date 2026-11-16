@@ -48,6 +48,17 @@ export type Reminder = { id: string; item_id: string; remind_at: string; note: s
 export const loadReminders = async () =>
   check(await supabase.from('reminders').select('id, item_id, remind_at, note, items(title, space_id)').is('sent_at', null).order('remind_at')) as unknown as Reminder[]; // many-to-one embed: one object, not an array
 
+export type Comment = { id: string; item_id: string; author: string; body: string; created_at: string; pending?: boolean };
+export const loadComments = async (itemId: string) =>
+  check(await supabase.from('comments').select('id, item_id, author, body, created_at').eq('item_id', itemId).order('created_at')) as Comment[];
+/** How many comments each item in a space has (for the count on each card). */
+export async function loadCommentCounts(spaceId: string) {
+  const rows = check(await supabase.from('comments').select('item_id').eq('space_id', spaceId)) as { item_id: string }[];
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.item_id] = (out[r.item_id] ?? 0) + 1;
+  return out;
+}
+
 export type Notification = { id: string; kind: string; title: string; body: string | null; item_id: string | null; created_at: string; read_at: string | null };
 
 // shortcut: newest 50; older history stays in the database (no automatic deletion).

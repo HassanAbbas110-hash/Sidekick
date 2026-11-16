@@ -14,6 +14,7 @@ import { FocusPanel } from './ui/Focus.tsx';
 import { PrivateSetup } from './ui/Private.tsx';
 import { PrivateView } from './ui/PrivateRoom.tsx';
 import { TodayView } from './ui/Today.tsx';
+import { Thread } from './ui/Thread.tsx';
 import { WeekView } from './ui/Week.tsx';
 import { IconCalendar, IconLock, IconSearch, IconToday, IconWeek } from './ui/Icons.tsx';
 function FocusDemo() {
@@ -68,12 +69,13 @@ const EVENTS = [
   { id: 'e3', space_id: 's', kind: 'event', title: 'Work on: booking form', body: null, starts_at: at(1, 13), ends_at: at(1, 15), all_day: false, recur: null, task_id: 'a3', version: 1, created_by: 'me' },
   { id: 'e4', space_id: 's', kind: 'event', title: 'Kasi Coffee shoot', body: null, starts_at: at(3, 0), ends_at: at(4, 0), all_day: true, recur: null, task_id: null, version: 1, created_by: 'miki' },
 ];
-if (['#clients', '#files', '#calendar', '#focus', '#search', '#today', '#week'].includes(location.hash)) {
+if (['#clients', '#files', '#calendar', '#focus', '#search', '#today', '#week', '#thread'].includes(location.hash)) {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const table = url.pathname.match(/\/rest\/v1\/(\w+)/)?.[1];
     const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (table === 'comments') return json([{ id: 'k1', item_id: 'a1', author: 'miki', body: 'I left two headline options in the doc. Which one do you prefer?', created_at: at(0, 9, 12) }]);
     if (url.pathname.endsWith('/rpc/search_all')) return json([
       { kind: 'task', id: 'a1', space_id: 's', title: 'Approve homepage copy for Bright Dental', snippet: 'Miki left two options in the shared doc', extra: null, updated_at: at(0, 9), trashed: false, rank: 0 },
       { kind: 'client', id: 'c1', space_id: 's', title: 'Bright Dental', snippet: 'Dr N. Khumalo, hello@brightdental.example', extra: 'client', updated_at: at(-1, 9), trashed: false, rank: 0 },
@@ -144,7 +146,10 @@ const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, rea
 const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
 const demoReminder = { id: 'r9', item_id: 'a1', remind_at: soon(14), note: 'Ask which headline they prefer', items: { title: 'Approve homepage copy for Bright Dental', space_id: 's' } };
 const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion, onSchedule: () => {},
-  reminderFor: (id: string) => (id === 'a1' ? demoReminder : undefined), onRemind: async () => {}, onCancelRemind: async () => {} };
+  reminderFor: (id: string) => (id === 'a1' ? demoReminder : undefined), onRemind: async () => {}, onCancelRemind: async () => {},
+  commentCount: (id: string) => (id === 'a1' ? 2 : 0),
+  renderThread: (id: string) => <Thread itemId={id} userId={ME} nameOf={nameOf} queue={async () => {}} refreshKey={0} pending={[
+    { op_id: 'x', type: 'call', fn: 'add_comment', label: '', args: { p_id: 'c-new', p_item: id, p_body: 'The second headline. Shorter and it says what we do.' } }]} /> };
 const trashMode = location.hash === '#trash';
 const filesMode = location.hash === '#files';
 const calMode = location.hash === '#calendar';

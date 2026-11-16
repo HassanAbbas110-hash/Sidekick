@@ -1112,3 +1112,25 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 @media (prefers-reduced-motion: reduce) {
   button.primary::after { display: none; }
 }
+
+/* ---------- comments: yours on the gold side, theirs on the ivory side ---------- */
+.comment-fact { display: inline-flex; align-items: center; gap: 4px; color: var(--ivory); font-size: 0.82rem; }
+.thread { display: grid; gap: 10px; padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.thread-list { list-style: none; margin: 0; padding: 8px 0 0; display: grid; gap: 10px; }
+.thread-list li { display: grid; gap: 3px; max-width: 88%; }
+.thread-list li.mine { justify-self: end; justify-items: end; }
+.thread-list li.theirs { justify-self: start; }
+.bubble { padding: 9px 13px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; font-size: 0.95rem; }
+.mine .bubble { background: var(--gold-grad); color: var(--ink); border-bottom-right-radius: 5px; }
+.theirs .bubble { background: var(--ivory); color: var(--ink); border-bottom-left-radius: 5px; }
+.thread-meta { font-size: 0.75rem; color: var(--mist); padding: 0 4px; }
+.thread-form { display: flex; gap: 8px; align-items: end; }
+.thread-form textarea { min-height: 44px; max-height: 160px; border-radius: 22px; padding: 11px 16px; resize: none; field-sizing: content; }
+.thread-form button { flex: none; }
+/* inside an ivory note the thread turns to ink */
+.note .thread { border-top-color: #d8d0c2; }
+.note .theirs .bubble { background: #e6dfd2; }
+.note .thread-meta, .note .hint { color: #6b6481; }
+.note .thread-form textarea { background: #fffaf2; border-color: #d8d0c2; color: var(--ink); }
+.note-cmt { justify-self: start; display: inline-flex; align-items: center; gap: 6px; color: #5a536e; }
+.note-cmt:hover:not(:disabled) { background: #e9e2d5 !important; color: var(--ink); }

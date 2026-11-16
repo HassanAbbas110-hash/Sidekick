@@ -11,7 +11,7 @@ export type Op =
   | { op_id: string; type: 'call'; fn: CallFn; client_id?: string; label: string; args: Record<string, string | number | boolean | null> };
 
 export type MoneyFn = 'record_payment' | 'add_charge' | 'reverse_payment' | 'create_agreement';
-export type CallFn = MoneyFn | 'start_focus' | 'end_focus' | 'adjust_focus' | 'set_reminder' | 'cancel_reminder';
+export type CallFn = MoneyFn | 'start_focus' | 'end_focus' | 'adjust_focus' | 'set_reminder' | 'cancel_reminder' | 'add_comment';
 
 export type ItemOpResult = { status: 'applied' | 'partial' | 'conflict'; version: number; conflicts: string[]; replayed?: boolean };
 export type OpResult = ItemOpResult | { status: 'called'; result: unknown };
