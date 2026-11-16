@@ -6,7 +6,7 @@ Stages follow spec §18. A stage does not start until the previous gate is revie
 - [x] Project folder `C:\Users\HP\Sidekick`, git `main`
 - [x] Spec, README, architecture, plan, acceptance matrix
 - [x] Logo concept (`brand/`) — proposed, not yet approved
-- [ ] GitHub repo `Sidekick` (private), `origin` connected, push verified — **blocked: needs owner action**
+- [x] GitHub repo `Sidekick`, `origin` connected, push verified by ls-remote readback
 - [ ] Hassan approves architecture + privacy option (architecture.md §3)
 - [ ] Supabase project (free) + Firebase project (FCM) created by Hassan
 - [ ] Proofs 1–4 (architecture.md §7)

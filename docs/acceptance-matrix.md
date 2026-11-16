@@ -22,5 +22,5 @@ Status labels: Not started · Implemented · Automated-test verified · Real-bro
 | A16 | Signed APK update keeps data | 4 | android | — | — | Not started |
 | A17 | Quota/unavailable states, no silent billing | 4 | errors | — | — | Not started |
 | A18 | Keyboard/touch, focus, contrast, no leaks | 1–5 | ui | — | — | Not started |
-| S0-GIT | GitHub repo connected and push verified | 0 | — | git ls-remote | — | Blocked (owner) |
+| S0-GIT | GitHub repo connected and push verified | 0 | — | git ls-remote origin | remote main = 390482b | Implemented (verified) |
 | S0-LOGO | Logo concept | 0 | brand/ | — | brand/logo-sheet.png | Implemented (unapproved) |
