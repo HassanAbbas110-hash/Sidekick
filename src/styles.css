@@ -948,3 +948,18 @@ kbd { font: inherit; font-size: 0.72rem; padding: 2px 7px; border-radius: 6px; b
   .week-cols, .reflect-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .seam-up span, .seam-down span { transition: none; } }
+
+/* ---------- reminders ---------- */
+.remind-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.remind-btn, .remind-set { display: inline-flex; align-items: center; gap: 6px; }
+.remind-set { color: var(--gold); font-size: 0.88rem; font-weight: 600; }
+.remind-fact { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); font-size: 0.82rem; }
+.remind-pop { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-md); background: var(--ink); border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--line)); animation: fade 0.18s ease; }
+.remind-pop label { display: grid; gap: 6px; font-size: 0.88rem; font-weight: 600; }
+.remind-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.remind-chips button { min-height: 40px; border-radius: 999px; font-size: 0.9rem; }
+.remind-chips button:hover { border-color: var(--gold-deep); color: var(--gold); }
+.remind-custom { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.remind-custom label { flex: 1 1 200px; }
+.upcoming-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--r-md); background: var(--ink); color: var(--gold); }
+.upcoming-text { display: grid; gap: 1px; color: var(--ivory); min-width: 0; }

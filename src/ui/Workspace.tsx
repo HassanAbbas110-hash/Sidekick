@@ -16,6 +16,8 @@ import { LinksStrip, type LinkRow } from './Links.tsx';
 import { SearchPanel } from './Search.tsx';
 import { TodayView } from './Today.tsx';
 import { WeekView } from './Week.tsx';
+import { RemindControl, reminderTime, BellSmall } from './Remind.tsx';
+import { loadReminders, type Reminder } from '../lib/data.ts';
 import { openLink } from '../lib/links.ts';
 import type { Hit } from '../lib/search.ts';
 import { lock, storedKey } from '../lib/keystore.ts';
@@ -91,6 +93,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [loadError, setLoadError] = useState('');
   const [inbox, setInbox] = useState<Notification[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [push, setPush] = useState<PushStatus | null>(null);
   const [side, setSide] = useState<Side>('you');
   const [view, setView] = useState<'tasks' | 'clients' | 'files' | 'trash'>('tasks');
@@ -171,6 +174,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     } catch {
       /* inbox stays as last shown; the offline banner already explains why */
     }
+    try { setReminders((await withCache(userId, 'reminders', loadReminders)).value); } catch { /* same */ }
   }, [userId]);
 
   useEffect(() => {
@@ -223,8 +227,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     if (r.results.length) {
       kickPushQueue();
       await reloadItems();
+      await reloadInbox();
     }
-  }, [box, reloadItems]);
+  }, [box, reloadItems, reloadInbox]);
 
   useEffect(() => { refresh(); reloadInbox(); }, [refresh, reloadInbox]);
   useEffect(() => { reloadItems(); reloadDeletion(); }, [reloadItems, reloadDeletion]);
@@ -317,8 +322,24 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const active = (list: Row[]) => list.filter((t) => t.status !== 'done');
   const unread = inbox.filter((n) => !n.read_at).length;
 
+  // My reminders, with ones set or cancelled on this device but not yet synced laid on top.
+  const shownReminders = (() => {
+    const m = new Map(reminders.map((r) => [r.id, r]));
+    for (const op of pending) {
+      if (op.type !== 'call') continue;
+      const id = String(op.args.p_id);
+      if (op.fn === 'set_reminder') m.set(id, { id, item_id: String(op.args.p_item), remind_at: String(op.args.p_at), note: (op.args.p_note as string | null) ?? null, items: m.get(id)?.items ?? null, pending: true });
+      else if (op.fn === 'cancel_reminder') m.delete(id);
+    }
+    return [...m.values()].sort((a, b) => a.remind_at.localeCompare(b.remind_at));
+  })();
+  const reminderFor = (itemId: string) => shownReminders.find((r) => r.item_id === itemId);
+  const onRemind = (itemId: string, at: Date, note: string | null) => queue({ op_id: crypto.randomUUID(), type: 'call', fn: 'set_reminder', label: 'Reminder',
+    args: { p_id: reminderFor(itemId)?.id ?? crypto.randomUUID(), p_item: itemId, p_at: at.toISOString(), p_note: note } });
+  const onCancelRemind = (id: string) => queue({ op_id: crypto.randomUUID(), type: 'call', fn: 'cancel_reminder', label: 'Cancel reminder', args: { p_id: id } });
+
   const onSchedule = (row: Row) => { if (!space) return; setPrefill({ space_id: space.id, task_id: row.id, title: `Work on: ${row.title ?? 'task'}` }); setPage('calendar'); };
-  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule };
+  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind };
 
   return (
     <div className="app">
@@ -351,7 +372,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
       }} />}
       {focusOpen && <FocusPanel userId={userId} timer={timer} setTimer={setTimer} queue={queue} nameOf={nameOf} online={sync.state !== 'offline'}
         tasks={tasks.filter((t) => t.status !== 'done' && t.version).map((t) => ({ id: t.id, title: t.title }))} onClose={() => setFocusOpen(false)} />}
-      {inboxOpen && <Inbox items={inbox} push={push} notices={notices} nameOf={nameOf} onClose={() => setInboxOpen(false)}
+      {inboxOpen && <Inbox items={inbox} push={push} notices={notices} nameOf={nameOf} onClose={() => setInboxOpen(false)} reminders={shownReminders} onCancelRemind={onCancelRemind}
         onRead={async (ids) => { await markRead(ids).catch(() => {}); await reloadInbox(); }} />}
 
       {savedCopy && <p className="notice warn" role="status">Showing what this device saved at {clock.format(new Date(savedCopy))}. Changes from {partnerName} since then will appear when you reconnect.</p>}
@@ -550,6 +571,9 @@ type CardProps = {
   onEdit: (row: Row, f: Fields) => Promise<void>; onHandOver: (row: Row, to: string | null) => Promise<void>;
   arrived: { id: string; to: Side } | null;
   onSchedule: (row: Row) => void;
+  reminderFor?: (itemId: string) => Reminder | undefined;
+  onRemind?: (itemId: string, at: Date, note: string | null) => Promise<void>;
+  onCancelRemind?: (id: string) => Promise<void>;
   deletion: {
     isOwner: boolean; requestFor: (id: string) => DeletionRequest | undefined;
     onAskDelete: (row: Row, reason: string) => Promise<void>; onTrash: (row: Row) => Promise<void>;
@@ -575,7 +599,7 @@ export function Lane({ side, title, rows, empty, ...card }: { side: Side; title:
   );
 }
 
-export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion, onSchedule }: { row: Row; side: Side | 'loose' } & CardProps) {
+export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind }: { row: Row; side: Side | 'loose' } & CardProps) {
   const [open, setOpen] = useState(false);
   const done = r.status === 'done';
   const overdue = isOverdue(r);
@@ -583,6 +607,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
   const target = r.assignee === userId ? partner?.id ?? null : userId;
   const targetLabel = r.assignee === userId ? `Hand to ${nameOf(partner?.id ?? null)}` : r.assignee ? 'Take it back' : 'Claim it';
   const arriving = arrived?.id === r.id ? `arrive-${arrived.to}` : '';
+  const reminder = reminderFor?.(r.id);
   return (
     <li id={`item-${r.id}`} className={`task ${side} ${done ? 'is-done' : ''} ${overdue ? 'is-late' : ''} ${arriving}`}>
       <button className="ring" aria-pressed={done} disabled={!synced}
@@ -597,6 +622,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
           {r.due_at && <span className={overdue ? 'due late' : 'due'}>{overdue ? 'Overdue, was due ' : 'Due '}{when.format(new Date(r.due_at))}</span>}
           {r.status && r.status !== 'open' && r.status !== 'done' && <span className="state">{STATUS_LABEL[r.status]}</span>}
           {deletion.requestFor(r.id) && <span className="del-flag">Deletion requested</span>}
+          {reminder && !done && <span className="remind-fact"><BellSmall />{reminderTime(reminder.remind_at)}</span>}
           <SyncNote sync={r.sync} />
         </div>
         {open && (
@@ -614,6 +640,8 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
               )}
               {synced && r.status !== 'done' && <button className="ghost" onClick={() => onSchedule(r)}>Schedule time</button>}
             </div>
+            {synced && !done && onRemind && onCancelRemind && <RemindControl due={r.due_at} current={reminder}
+              onSet={(at, note) => onRemind(r.id, at, note)} onCancel={() => (reminder ? onCancelRemind(reminder.id) : Promise.resolve())} />}
             <p className="byline">Added by {r.createdBy ? nameOf(r.createdBy) : 'you'}</p>
             {synced && <DeleteControls isOwner={deletion.isOwner} pending={deletion.requestFor(r.id)}
               onAsk={(reason) => deletion.onAskDelete(r, reason)} onTrash={() => deletion.onTrash(r)} />}
@@ -734,9 +762,9 @@ const PUSH_NOTE: Record<PushStatus, string> = {
 
 const CATEGORY: Record<string, string> = { private_note: 'a private note', private_task: 'a private task', private_file: 'a private file', private_event: 'a private event', private_item: 'a private item' };
 
-export function Inbox({ items, push, onRead, onClose, notices = [], nameOf = () => 'Someone' }: {
+export function Inbox({ items, push, onRead, onClose, notices = [], nameOf = () => 'Someone', reminders = [], onCancelRemind }: {
   items: Notification[]; push: PushStatus | null; onRead: (ids: string[]) => Promise<void>; onClose: () => void;
-  notices?: PrivacyNotice[]; nameOf?: (id: string | null) => string;
+  notices?: PrivacyNotice[]; nameOf?: (id: string | null) => string; reminders?: Reminder[]; onCancelRemind?: (id: string) => Promise<void>;
 }) {
   const unreadIds = items.filter((n) => !n.read_at).map((n) => n.id);
   useEffect(() => {
@@ -754,6 +782,19 @@ export function Inbox({ items, push, onRead, onClose, notices = [], nameOf = () 
           <button className="ghost close" aria-label="Close inbox" onClick={onClose}>✕</button>
         </div>
         {push && <p className="hint">{PUSH_NOTE[push]}</p>}
+        {reminders.length > 0 && (
+          <section className="upcoming" aria-label="Your reminders">
+            <h3 className="drawer-sub">Coming up</h3>
+            <ul className="inbox-list">{reminders.map((r) => (
+              <li key={r.id} className="upcoming-row">
+                <BellSmall />
+                <span className="upcoming-text"><span className="note-title">{r.items?.title?.startsWith('enc1:') ? 'Something private' : r.items?.title || 'A task'}</span>
+                  <span className="note-time">{reminderTime(r.remind_at)}{r.note ? `, ${r.note}` : ''}{r.pending ? ' (saving)' : ''}</span></span>
+                {onCancelRemind && <button className="ghost small-btn" aria-label="Cancel this reminder" onClick={() => onCancelRemind(r.id)}>Cancel</button>}
+              </li>
+            ))}</ul>
+          </section>
+        )}
         {items.length === 0 ? <p className="quiet">When your partner assigns, finishes or changes something, it shows up here.</p> : (
           <ul className="inbox-list">
             {items.map((n) => (

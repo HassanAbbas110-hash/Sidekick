@@ -43,6 +43,11 @@ export async function sendOp(op: Op): Promise<OpResult> {
   return check(await supabase.rpc('apply_op', { op })) as OpResult;
 }
 
+export type Reminder = { id: string; item_id: string; remind_at: string; note: string | null; items: { title: string | null; space_id: string } | null; pending?: boolean };
+/** My reminders that have not fired yet (nobody else's are ever visible). */
+export const loadReminders = async () =>
+  check(await supabase.from('reminders').select('id, item_id, remind_at, note, items(title, space_id)').is('sent_at', null).order('remind_at')) as unknown as Reminder[]; // many-to-one embed: one object, not an array
+
 export type Notification = { id: string; kind: string; title: string; body: string | null; item_id: string | null; created_at: string; read_at: string | null };
 
 // shortcut: newest 50; older history stays in the database (no automatic deletion).

@@ -135,7 +135,9 @@ const partner = { id: MIKI, email: 'miki@example.test', role: 'member' as const,
 const asMember = location.search.includes('member');
 const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, reason: 'Kasi Coffee sent the files on WhatsApp already, this is a duplicate.', requested_by: MIKI, status: 'pending', action: 'delete', created_at: soon(-2), items: { title: 'Collect logo files from Kasi Coffee', kind: 'task', space_id: 's' } };
 const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
-const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion, onSchedule: () => {} };
+const demoReminder = { id: 'r9', item_id: 'a1', remind_at: soon(14), note: 'Ask which headline they prefer', items: { title: 'Approve homepage copy for Bright Dental', space_id: 's' } };
+const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion, onSchedule: () => {},
+  reminderFor: (id: string) => (id === 'a1' ? demoReminder : undefined), onRemind: async () => {}, onCancelRemind: async () => {} };
 const trashMode = location.hash === '#trash';
 const filesMode = location.hash === '#files';
 const calMode = location.hash === '#calendar';
@@ -173,7 +175,7 @@ createRoot(document.getElementById('root')!).render(
     {searchMode && <SearchPanel userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} privateKey={null} onPick={() => {}} onClose={() => {}} />}
     {focusMode && <FocusPanel userId={ME} timer={{ id: 't', mode: 'cycle', started_at: Date.now() - 31 * 60_000, paused_at: null, paused_ms: 0, planned_seconds: 1500, break_seconds: 300, label: 'Chapter 4 revision', task_id: null }}
       setTimer={() => {}} queue={async () => {}} nameOf={nameOf} tasks={[]} onClose={() => {}} online />}
-    {inbox && <Inbox push="registered" onRead={async () => {}} onClose={() => {}} items={[
+    {inbox && <Inbox push="registered" reminders={[demoReminder]} onCancelRemind={async () => {}} onRead={async () => {}} onClose={() => {}} items={[
       { id: 'n1', kind: 'task_assigned', title: 'Miki assigned you a task', body: 'Approve homepage copy for Bright Dental', item_id: null, created_at: soon(-1), read_at: null },
       { id: 'n2', kind: 'task_done', title: 'Miki completed a task', body: 'Collect testimonials', item_id: null, created_at: soon(-20), read_at: soon(-2) },
     ]} />}

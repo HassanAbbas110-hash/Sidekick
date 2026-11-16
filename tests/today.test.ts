@@ -28,3 +28,15 @@ test('today: due earlier today counts as overdue; greeting and ribbon follow Joh
   assert.equal(ribbonPos(fromWall(2026, 10, 16, 3)), 0, 'clamped');
   assert.equal(ribbonPos(fromWall(2026, 10, 16, 23, 30)), 1);
 });
+
+test('reminder presets: evening only before 17:00, due-morning only when it adds something; inputs use Johannesburg time', async () => {
+  const { presets, localInput, fromLocalInput } = await import('../src/lib/reminders.ts');
+  const labels = (d: Date, due: Date | null = null) => presets(d, due).map((p) => p.label);
+  assert.deepEqual(labels(fromWall(2026, 10, 16, 10)), ['In 1 hour', 'This evening, 18:00', 'Tomorrow, 08:00']);
+  assert.deepEqual(labels(fromWall(2026, 10, 16, 19)), ['In 1 hour', 'Tomorrow, 08:00']);
+  assert.deepEqual(labels(fromWall(2026, 10, 16, 19), fromWall(2026, 10, 17, 12)), ['In 1 hour', 'Tomorrow, 08:00'], 'due tomorrow: no duplicate');
+  assert.equal(presets(fromWall(2026, 10, 16, 10), fromWall(2026, 10, 19, 15)).at(-1)!.at.getTime(), fromWall(2026, 10, 19, 8).getTime());
+  assert.equal(localInput(fromWall(2026, 10, 16, 8, 5)), '2026-11-16T08:05');
+  assert.equal(fromLocalInput('2026-11-16T08:05')!.getTime(), fromWall(2026, 10, 16, 8, 5).getTime());
+  assert.equal(fromLocalInput('nonsense'), null);
+});
