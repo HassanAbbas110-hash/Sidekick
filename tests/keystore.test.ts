@@ -59,3 +59,25 @@ test('private area: another account on the same device has no key', async () => 
   await setUp(randomUUID(), PASS, remote);
   assert.equal(await storedKey(randomUUID()), undefined);
 });
+
+test('private area: an encrypted private task and event save through the normal sync path, unreadable to the partner', async () => {
+  const { freshDb, as, HASSAN, MARKETER, MARKETER_PRIVATE } = await import('./helpers/db.ts');
+  const db = await freshDb();
+  const user = randomUUID();
+  const { remote } = fakeRemote();
+  await setUp(user, PASS, remote);
+  const key = (await storedKey(user))!;
+  const task = randomUUID(), ev = randomUUID();
+  const op = async (o: object) => as(db, MARKETER, `select apply_op($1::jsonb)`, [JSON.stringify(o)]);
+  await op({ op_id: randomUUID(), type: 'create', id: task, space_id: MARKETER_PRIVATE, kind: 'task',
+    fields: { title: await sealText(key, 'Dentist forms', task, 'title'), status: 'open' } });
+  await op({ op_id: randomUUID(), type: 'create', id: ev, space_id: MARKETER_PRIVATE, kind: 'event',
+    fields: { title: await sealText(key, 'Exam', ev, 'title'), starts_at: '2026-11-20T08:00:00Z', ends_at: '2026-11-20T10:00:00Z', all_day: false, recur: null } });
+  const mine = await as<{ id: string; title: string }>(db, MARKETER, `select id, title from items where space_id = $1 order by kind desc`, [MARKETER_PRIVATE]);
+  assert.equal(mine.length, 2);
+  assert.ok(mine.every((r) => r.title.startsWith('enc1:') && !r.title.includes('Dentist') && !r.title.includes('Exam')), 'server holds ciphertext only');
+  assert.deepEqual(await Promise.all(mine.map((r) => openText(key, r.title, r.id, 'title'))), ['Dentist forms', 'Exam'], 'owner decrypts exactly');
+  assert.equal((await as(db, HASSAN, `select 1 from items where space_id = $1`, [MARKETER_PRIVATE])).length, 0);
+  const busy = await as(db, HASSAN, `select * from busy_slots('2026-11-20', '2026-11-21')`);
+  assert.equal(busy.length, 1);
+});
