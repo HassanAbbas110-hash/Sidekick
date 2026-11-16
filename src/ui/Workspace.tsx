@@ -16,6 +16,7 @@ import { LinksStrip, type LinkRow } from './Links.tsx';
 import { SearchPanel } from './Search.tsx';
 import { TodayView } from './Today.tsx';
 import { WeekView } from './Week.tsx';
+import { IconCalendar, IconLock, IconSearch, IconSpaces, IconToday, IconWeek } from './Icons.tsx';
 import { RemindControl, reminderTime, BellSmall } from './Remind.tsx';
 import { loadReminders, type Reminder } from '../lib/data.ts';
 import { openLink } from '../lib/links.ts';
@@ -114,6 +115,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [timer, setTimer] = useState<Timer | null>(() => loadTimer(userId));
   const [focusOpen, setFocusOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false); // phone: the spaces sheet
   const [jump, setJump] = useState<{ kind: string; id: string } | null>(null);
   // "/" or Ctrl/Cmd+K opens search from anywhere (not while typing in a field).
   useEffect(() => {
@@ -397,16 +399,14 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
       })()}
 
       <div className="frame">
-        <nav className="rail" aria-label="Spaces">
-          <button className={page === 'today' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'today'} onClick={() => setPage('today')}>
-            <span className="space-dot today-dot" aria-hidden />Today
-          </button>
-          <button className={page === 'week' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'week'} onClick={() => setPage('week')}>
-            <span className="space-dot week-dot" aria-hidden />Week
-          </button>
-          <button className={page === 'calendar' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'calendar'} onClick={() => setPage('calendar')}>
-            <span className="space-dot cal-dot" aria-hidden />Calendar
-          </button>
+        {sheetOpen && <div className="scrim sheet-scrim" onClick={() => setSheetOpen(false)} aria-hidden />}
+        <nav className={sheetOpen ? 'rail sheet-open' : 'rail'} aria-label="Spaces" onClick={(e) => { if ((e.target as HTMLElement).closest('.space')) setSheetOpen(false); }}>
+          <span className="sheet-grip" aria-hidden />
+          <div className="rail-main">
+            {([['today', 'Today', IconToday], ['week', 'Week', IconWeek], ['calendar', 'Calendar', IconCalendar]] as const).map(([p, label, Icon]) => (
+              <button key={p} className={page === p ? 'space nav on' : 'space nav'} aria-current={page === p} onClick={() => setPage(p)}><Icon />{label}</button>
+            ))}
+          </div>
           <p className="rail-title">Spaces</p>
           <ul>
             {spaces.filter((s) => s.visibility === 'shared').map((s) => (
@@ -420,19 +420,19 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
           <NewSpace onCreate={async (name) => { await createSharedSpace(name, userId); await refresh(); }} />
           <p className="rail-title rail-private">Private</p>
           {vaultExists === false ? (
-            <button className={page === 'private-setup' ? 'space on' : 'space'} onClick={() => setPage('private-setup')}><span className="space-dot lock-dot" aria-hidden />Set up your private area</button>
+            <button className={page === 'private-setup' ? 'space on' : 'space'} onClick={() => setPage('private-setup')}><span className="mono mono-lock" aria-hidden><IconLock /></span><span className="space-name">Set up your private area</span></button>
           ) : (
             <ul>{privateSpaces.map((s) => (
               <li key={s.id}>
                 <button className={s.id === spaceId && page === 'space' ? 'space on' : 'space'} aria-current={s.id === spaceId && page === 'space'} onClick={() => { setSpaceId(s.id); setPage('space'); }}>
-                  <span className="space-dot lock-dot" aria-hidden />{privateNames[s.id] ?? '…'}
+                  <span className="mono mono-lock" aria-hidden><IconLock /></span><span className="space-name">{privateNames[s.id] ?? '…'}</span>
                 </button>
               </li>
             ))}</ul>
           )}
         </nav>
 
-        <main className="stage">
+        <main className="stage" key={page === 'space' ? `space:${spaceId}` : page}>
           {page === 'private-setup' ? (
             <PrivateSetup userId={userId} isOwner={isOwnerNow} ownerName={ownerName} partnerName={partnerName}
               onDone={async (k) => { setPrivKey(k); setVaultExists(true); await refresh(); setPage('space'); }} />
@@ -547,6 +547,18 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
           )}
         </main>
       </div>
+
+      {/* phone only: the main places sit under the thumb */}
+      <nav className="tabbar" aria-label="Main">
+        {([['today', 'Today', IconToday], ['week', 'Week', IconWeek], ['calendar', 'Calendar', IconCalendar]] as const).map(([p, label, Icon]) => (
+          <button key={p} className={page === p && !sheetOpen ? 'on' : ''} aria-current={page === p} onClick={() => { setSheetOpen(false); setPage(p); }}><Icon /><span>{label}</span></button>
+        ))}
+        <button className={(page === 'space' || page === 'private-setup') || sheetOpen ? 'on' : ''} aria-expanded={sheetOpen} onClick={() => setSheetOpen((o) => !o)}>
+          {page === 'space' && space ? <span className="tab-mono" aria-hidden>{space.visibility === 'private' ? <IconLock /> : space.name.trim().charAt(0).toUpperCase()}</span> : <IconSpaces />}
+          <span>Spaces</span>
+        </button>
+        <button onClick={() => { setSheetOpen(false); setSearchOpen(true); }}><IconSearch /><span>Search</span></button>
+      </nav>
     </div>
   );
 }

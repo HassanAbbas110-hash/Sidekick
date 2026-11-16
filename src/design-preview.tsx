@@ -14,6 +14,8 @@ import { PrivateSetup } from './ui/Private.tsx';
 import { PrivateView } from './ui/PrivateRoom.tsx';
 import { TodayView } from './ui/Today.tsx';
 import { WeekView } from './ui/Week.tsx';
+import { IconCalendar, IconLock, IconSearch, IconToday, IconWeek } from './ui/Icons.tsx';
+const nav = location.hash === '#today' ? 'today' : location.hash === '#week' ? 'week' : location.hash === '#calendar' ? 'calendar' : 'space';
 import { sealText } from './crypto/vault.ts';
 import type { Item } from './lib/data.ts';
 import type { DeletionRequest } from './lib/data.ts';
@@ -180,11 +182,19 @@ createRoot(document.getElementById('root')!).render(
       { id: 'n2', kind: 'task_done', title: 'Miki completed a task', body: 'Collect testimonials', item_id: null, created_at: soon(-20), read_at: soon(-2) },
     ]} />}
     <div className="frame">
-      <nav className="rail"><p className="rail-title">Spaces</p><ul>
-        <li><button className="space on"><span className="mono">W</span><span className="space-name">WebRift</span></button></li>
+      <nav className={location.search.includes('sheet') ? 'rail sheet-open' : 'rail'}><span className="sheet-grip" />
+        <div className="rail-main">
+          <button className={nav === 'today' ? 'space nav on' : 'space nav'}><IconToday />Today</button>
+          <button className={nav === 'week' ? 'space nav on' : 'space nav'}><IconWeek />Week</button>
+          <button className={nav === 'calendar' ? 'space nav on' : 'space nav'}><IconCalendar />Calendar</button>
+        </div>
+        <p className="rail-title">Spaces</p><ul>
+        <li><button className={nav === 'space' ? 'space on' : 'space'}><span className="mono">W</span><span className="space-name">WebRift</span></button></li>
         <li><button className="space"><span className="mono">7</span><span className="space-name">7 Waves</span></button></li>
         <li><button className="space"><span className="mono">S</span><span className="space-name">Shared study</span></button></li>
-      </ul><button className="ghost new-space-btn">New shared space</button></nav>
+      </ul><button className="ghost new-space-btn">New shared space</button>
+        <p className="rail-title rail-private">Private</p>
+        <ul><li><button className="space"><span className="mono mono-lock"><IconLock /></span><span className="space-name">Study and personal</span></button></li></ul></nav>
       <main className="stage">
         <section className="intro hero"><span className="mono mono-lg">W</span><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
@@ -224,5 +234,12 @@ createRoot(document.getElementById('root')!).render(
         </>}
       </main>
     </div>
+    <nav className="tabbar">
+      <button className={nav === 'today' ? 'on' : ''}><IconToday /><span>Today</span></button>
+      <button className={nav === 'week' ? 'on' : ''}><IconWeek /><span>Week</span></button>
+      <button className={nav === 'calendar' ? 'on' : ''}><IconCalendar /><span>Calendar</span></button>
+      <button className={nav === 'space' ? 'on' : ''}><span className="tab-mono">W</span><span>Spaces</span></button>
+      <button><IconSearch /><span>Search</span></button>
+    </nav>
   </div>,
 );
