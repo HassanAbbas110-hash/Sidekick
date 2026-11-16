@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'android/**', 'index.html', 'package*.json', 'capacitor.config.ts', '.github/workflows/android.yml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install and test
+        run: |
+          npm ci
+          npm test
+
+      # Public values only: the publishable key is designed to ship inside the app. Set them under
+      # repo Settings > Secrets and variables > Actions > Variables.
+      - name: Build the web app
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Set the VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY repository variables."
+            exit 1
+          fi
+          npm run build
+          npx cap sync android
+
+      - name: Restore the signing key
+        env:
+          SIDEKICK_KEYSTORE_BASE64: ${{ secrets.SIDEKICK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$SIDEKICK_KEYSTORE_BASE64" ]; then
+            echo "::error::The SIDEKICK_KEYSTORE_BASE64 secret is missing."
+            exit 1
+          fi
+          echo "$SIDEKICK_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sidekick.keystore"
+          echo "SIDEKICK_KEYSTORE_PATH=$RUNNER_TEMP/sidekick.keystore" >> "$GITHUB_ENV"
+
+      - name: Build the signed APK
+        working-directory: android
+        env:
+          SIDEKICK_KEYSTORE_PASSWORD: ${{ secrets.SIDEKICK_KEYSTORE_PASSWORD }}
+          SIDEKICK_KEY_PASSWORD: ${{ secrets.SIDEKICK_KEY_PASSWORD }}
+          SIDEKICK_VERSION_CODE: ${{ github.run_number }}
+          SIDEKICK_VERSION_NAME: 0.0.${{ github.run_number }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Remove the signing key from the build computer
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sidekick.keystore"
+
+      - name: Record checksum
+        run: sha256sum android/app/build/outputs/apk/release/app-release.apk | tee apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidekick-apk-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            apk.sha256
+          if-no-files-found: error

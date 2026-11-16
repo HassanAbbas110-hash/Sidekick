@@ -25,6 +25,13 @@ The 7 Waves staff APK is a WebView that loads a remote site. The spec (§3) says
 ### Why not Next.js
 Capacitor needs a static bundle, and offline-first work happens in the client anyway. Server rendering adds nothing here and complicates the APK build.
 
+## 1a. Authentication (engineering decision, 2026-11-16)
+
+- Email + password through Supabase Auth, with **public sign-up switched off** in the dashboard. Hassan creates both accounts himself (auto-confirmed), and the database also refuses any account whose email is not on `invites`. That gives two independent locks.
+- Sessions persist on the device (supabase-js storage) and refresh automatically.
+- Known limit: Supabase's built-in email service only sends to the project's own team members, so a "forgot password" email to the marketer will not arrive until a custom SMTP sender is configured. For now Hassan can reset a password from the dashboard. Recovery of *private encrypted data* is separate and always needs the user's own recovery key.
+- Android package name: `app.sidekick.organiser`.
+
 ## 2. Data model (outline)
 
 - `profiles` (2 invited users; `role` = owner | member). `invites` allowlist; sign-up is rejected unless the email is on it (enforced in a DB trigger, not the UI).

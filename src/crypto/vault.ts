@@ -18,7 +18,7 @@ const b64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (b) => String.fromChar
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const random = (n: number) => globalThis.crypto.getRandomValues(new Uint8Array(n));
 
-async function keyFromSecret(secret: string, salt: Uint8Array, iterations: number) {
+async function keyFromSecret(secret: string, salt: Uint8Array<ArrayBuffer>, iterations: number) {
   const material = await subtle.importKey('raw', enc.encode(secret.normalize('NFKC')), 'PBKDF2', false, ['deriveKey']);
   return subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
@@ -76,7 +76,7 @@ export async function changePassphrase(oldSecret: string, w: WrappedKey, newPass
 // Associated data binds ciphertext to its row and field, so it cannot be swapped into another item.
 const aadFor = (itemId: string, field: string) => enc.encode(`sidekick:v1:${itemId}:${field}`);
 
-export async function sealBytes(key: CryptoKey, data: Uint8Array, itemId: string, field: string): Promise<Uint8Array> {
+export async function sealBytes(key: CryptoKey, data: Uint8Array<ArrayBuffer>, itemId: string, field: string): Promise<Uint8Array<ArrayBuffer>> {
   const iv = random(12);
   const ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aadFor(itemId, field) }, key, data));
   const out = new Uint8Array(1 + iv.length + ct.length);
@@ -86,7 +86,7 @@ export async function sealBytes(key: CryptoKey, data: Uint8Array, itemId: string
   return out;
 }
 
-export async function openBytes(key: CryptoKey, sealed: Uint8Array, itemId: string, field: string): Promise<Uint8Array> {
+export async function openBytes(key: CryptoKey, sealed: Uint8Array<ArrayBuffer>, itemId: string, field: string): Promise<Uint8Array<ArrayBuffer>> {
   if (sealed[0] !== 1) throw new Error('unknown_format');
   try {
     return new Uint8Array(await subtle.decrypt(

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sidekick">
+<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="180" y1="120" x2="330" y2="260"><stop offset="0" stop-color="#F8DDA0"/><stop offset="1" stop-color="#D99A2B"/></linearGradient>
+<mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><rect x="249" y="200" width="14" height="112" fill="#000"/></mask></defs>
+<rect width="512" height="512" rx="116" fill="#14111F"/>
+<g mask="url(#gap)" stroke-width="46" fill="none">
+<path d="M311.4 160 A64 64 0 1 0 256 256" stroke="url(#g)"/><circle cx="311.4" cy="160" r="23" fill="url(#g)" stroke="none"/>
+<path d="M256 256 A64 64 0 1 1 200.6 352" stroke="#F4EFE6"/><circle cx="200.6" cy="352" r="23" fill="#F4EFE6" stroke="none"/>
+</g>
+</svg>

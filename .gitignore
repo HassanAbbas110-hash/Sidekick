@@ -16,3 +16,5 @@ android/app/build/
 android/.gradle/
 .DS_Store
 .claude/settings.local.json
+.playwright-mcp/
+.claude/launch.json

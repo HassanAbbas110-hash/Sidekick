@@ -2,7 +2,14 @@
 
 A private, offline-capable organiser for Hassan and his marketer: shared business work (WebRift, 7 Waves planning), private personal work, and study. Browser on laptop, signed APK on Android.
 
-**Status: Stage 0 (design and feasibility).** Database rules, sync outbox and on-device encryption exist as tested building blocks. There is no app UI yet, and nothing is deployed or device-verified.
+**Status: early Stage 1.** Database rules, sync outbox and on-device encryption are tested. A first app shell exists: sign in, shared spaces, notes and tasks saved through the outbox. Nothing is deployed, and no APK has been built or installed on a phone yet.
+
+## Run the app (laptop)
+```bash
+cp .env.example .env   # then fill in the project URL and publishable key
+npm install
+npm run dev
+```
 
 ## Run the tests
 Needs Node 24+.
@@ -28,5 +35,6 @@ The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabas
 - This repo is separate from WebRift, 7 Waves and Google Reviewer Management.
 
 ## Changelog
+- 0.0.3 (2026-11-16) — App shell (sign-in, shared spaces, notes/tasks via outbox), Capacitor Android project, icon/splash, APK workflow.
 - 0.0.2 (2026-11-16) — Core schema with RLS, idempotent sync, outbox, on-device encryption; 21 tests.
 - 0.0.1 (2026-11-16) — Project created; Stage 0 docs; proposed logo.

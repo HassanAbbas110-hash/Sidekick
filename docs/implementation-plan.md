@@ -16,6 +16,14 @@ Stages follow spec §18. A stage does not start until the previous gate is revie
 - [ ] Proofs needing devices: FCM push to phone, Capacitor offline restart, private file storage
 
 ## Stage 1 — secure vertical slice
+Progress (2026-11-16):
+- [x] App shell: Vite + React + TypeScript, Capacitor Android project (`app.sidekick.organiser`), Sidekick launcher icon and splash
+- [x] Sign-in screen against the real Supabase project (wrong password shows a clear error; checked in a real browser)
+- [x] Shared spaces list, create shared space, add note/task through the outbox with per-item sync status (code written; **not yet exercised with real accounts**)
+- [x] GitHub Actions workflow for a signed APK (**not yet run**: needs keystore secrets and repository variables)
+- [ ] Hassan: switch off public sign-up, create both accounts, add both emails to `invites`
+- [ ] Offline reading cache, private spaces + vault unlock, task assignment, inbox, push, deletion UI
+
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 
 ## Stage 2 — complete organisation
