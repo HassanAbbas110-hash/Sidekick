@@ -35,6 +35,7 @@ The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabas
 - This repo is separate from WebRift, 7 Waves and Google Reviewer Management.
 
 ## Changelog
+- 0.1.1 (2026-11-16) — Private area: on-device encryption, passphrase + recovery key, private tasks/notes/events, redacted deletion notices; 82 tests, 31 live checks.
 - 0.1.0 (2026-11-16) — Calendar (repeats, deadlines vs work time, partner Busy) and focus timer (alarms, overlap-safe totals); 76 tests.
 - 0.0.9 (2026-11-16) — Files and photos: versions, verified uploads, upload queue, links, offline keep; 59 tests, 29 live checks.
 - 0.0.8 (2026-11-16) — Deletion approvals: requests, decision panel, trash, restore, permanent deletion; 50 tests.

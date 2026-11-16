@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { loadCalendar, loadItems, skipOccurrence, type BusySlot, type CalEvent, type DueTask, type Space } from '../lib/data.ts';
+import { hide, loadCalendar, loadItems, reveal, skipOccurrence, type BusySlot, type CalEvent, type DueTask, type Space } from '../lib/data.ts';
 import { withCache } from '../lib/cache.ts';
 import { addDays, dayKey, expand, fromWall, startOfDay, wall, type Recur } from '../lib/recur.ts';
 import type { Fields, Op } from '../sync/outbox.ts';
@@ -22,7 +22,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export type Prefill = { space_id: string; task_id: string | null; title: string } | null;
 
 type Props = {
-  userId: string; spaces: Space[]; nameOf: (id: string | null) => string; partnerName: string;
+  userId: string; spaces: Space[]; privateKey: CryptoKey | null; nameOf: (id: string | null) => string; partnerName: string;
   queue: (op: Op) => Promise<void>; pendingCount: number; online: boolean;
   prefill: Prefill; onPrefillUsed: () => void;
 };
@@ -36,7 +36,7 @@ function range(view: View, anchor: Date) {
   return { from: s, to: addDays(s, 42) };
 }
 
-export function CalendarView({ userId, spaces, nameOf, partnerName, queue, pendingCount, online, prefill, onPrefillUsed }: Props) {
+export function CalendarView({ userId, spaces, privateKey, nameOf, partnerName, queue, pendingCount, online, prefill, onPrefillUsed }: Props) {
   const [view, setView] = useState<View>(() => (window.matchMedia?.('(max-width: 820px)').matches ? 'week' : 'week'));
   const [anchor, setAnchor] = useState(() => new Date());
   const [data, setData] = useState<Awaited<ReturnType<typeof loadCalendar>> | null>(null);
@@ -57,14 +57,23 @@ export function CalendarView({ userId, spaces, nameOf, partnerName, queue, pendi
   useEffect(() => { if (prefill) setForm({}); }, [prefill]);
 
   const shared = spaces.filter((s) => s.visibility === 'shared');
-  const spaceName = (id: string) => shared.find((s) => s.id === id)?.name ?? '';
+  // Private spaces are offered only while the private area is unlocked; their events show to the partner as Busy.
+  const usable = [...shared, ...(privateKey ? spaces.filter((s) => s.visibility === 'private' && s.owner_id === userId).map((s) => ({ ...s, name: 'Private' })) : [])];
+  const spaceName = (id: string) => usable.find((s) => s.id === id)?.name ?? (spaces.some((s) => s.id === id) ? 'Private' : '');
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!data) return;
+    Promise.all(data.events.filter((e) => e.title?.startsWith('enc1:')).map(async (e) => [e.id, (await reveal(privateKey, e.title, e.id, 'title')) ?? 'Private (locked)'] as const))
+      .then((pairs) => setTitles(Object.fromEntries(pairs)));
+  }, [data, privateKey]);
+  const titleOf = (ev: CalEvent) => titles[ev.id] ?? ev.title;
 
   const entries = useMemo<Entry[]>(() => {
     if (!data) return [];
     const skips = new Map<string, Set<number>>();
     for (const s of data.skips) { const set = skips.get(s.item_id) ?? new Set(); set.add(new Date(s.occurrence_start).getTime()); skips.set(s.item_id, set); }
     const out: Entry[] = [];
-    for (const ev of data.events) for (const o of expand(ev, from, to, skips.get(ev.id))) out.push({ kind: 'event', key: `${ev.id}:${o.original}`, start: o.start, end: o.end, ev, original: o.original });
+    for (const ev of data.events) for (const o of expand(ev, from, to, skips.get(ev.id))) out.push({ kind: 'event', key: `${ev.id}:${o.original}`, start: o.start, end: o.end, ev: { ...ev, title: titleOf(ev) }, original: o.original });
     for (const t of data.due) out.push({ kind: 'due', key: `due:${t.id}`, start: new Date(t.due_at), task: t });
     for (const b of data.busy as BusySlot[]) {
       for (const o of expand({ id: b.user_id, starts_at: b.starts_at, ends_at: b.ends_at, all_day: b.all_day, recur: b.recur }, from, to)) {
@@ -72,7 +81,7 @@ export function CalendarView({ userId, spaces, nameOf, partnerName, queue, pendi
       }
     }
     return out.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [data, from.getTime(), to.getTime(), userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, titles, from.getTime(), to.getTime(), userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byDay = useMemo(() => {
     const m = new Map<string, Entry[]>();
@@ -168,7 +177,7 @@ export function CalendarView({ userId, spaces, nameOf, partnerName, queue, pendi
           onSkip={async () => { await skipOccurrence(open.ev.id, open.original, userId); setOpen(null); await reload(); }} />
       )}
       {form && (
-        <EventForm spaces={shared} userId={userId} existing={form.ev} day={form.day} prefill={prefill}
+        <EventForm spaces={usable} privateKey={privateKey} userId={userId} existing={form.ev} day={form.day} prefill={prefill}
           onClose={() => { setForm(null); onPrefillUsed(); }}
           onSave={async (op) => { await queue(op); setForm(null); onPrefillUsed(); await reload(); }} />
       )}
@@ -220,8 +229,8 @@ const dateInput = (d: Date) => dayKey(d);
 const timeInput = (d: Date) => { const w = wall(d); return `${pad(w.h)}:${pad(w.mi)}`; };
 const toInstant = (date: string, time: string) => fromWall(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), +time.slice(0, 2), +time.slice(3, 5));
 
-function EventForm({ spaces, existing, day, prefill, onSave, onClose }: {
-  spaces: Space[]; userId: string; existing?: CalEvent; day?: Date; prefill: Prefill; onSave: (op: Op) => Promise<void>; onClose: () => void;
+function EventForm({ spaces, privateKey, existing, day, prefill, onSave, onClose }: {
+  spaces: Space[]; privateKey: CryptoKey | null; userId: string; existing?: CalEvent; day?: Date; prefill: Prefill; onSave: (op: Op) => Promise<void>; onClose: () => void;
 }) {
   const s0 = existing ? new Date(existing.starts_at) : (() => { const d = day ?? new Date(); const w = wall(d); return fromWall(w.y, w.m, w.d, Math.min(w.h + 1, 22), 0); })();
   const e0 = existing ? new Date(existing.ends_at) : new Date(s0.getTime() + 3600_000);
@@ -249,11 +258,15 @@ function EventForm({ spaces, existing, day, prefill, onSave, onClose }: {
     ev.preventDefault();
     if (invalid) return;
     const recur: Recur | null = freq ? { freq, ...(freq === 'weekly' && days.length ? { byweekday: [...days].sort() } : {}), ...(until ? { until } : {}) } : null;
-    const fields: Fields = { title: title.trim(), starts_at: s.toISOString(), ends_at: e.toISOString(), all_day: allDay, recur, task_id: taskId || null };
+    const id = existing?.id ?? crypto.randomUUID();
+    const isPrivate = spaces.find((sp) => sp.id === spaceId)?.visibility === 'private';
+    if (isPrivate && !privateKey) { setError('Unlock your private area first.'); return; }
+    const storedTitle = isPrivate ? await hide(privateKey!, title.trim(), id, 'title') : title.trim();
+    const fields: Fields = { title: storedTitle, starts_at: s.toISOString(), ends_at: e.toISOString(), all_day: allDay, recur, task_id: taskId || null };
     try {
       await onSave(existing
         ? { op_id: crypto.randomUUID(), type: 'update', id: existing.id, base_version: existing.version, fields }
-        : { op_id: crypto.randomUUID(), type: 'create', id: crypto.randomUUID(), space_id: spaceId, kind: 'event', fields });
+        : { op_id: crypto.randomUUID(), type: 'create', id, space_id: spaceId, kind: 'event', fields });
     } catch (err) { setError(String(err)); }
   }
 
@@ -291,6 +304,7 @@ function EventForm({ spaces, existing, day, prefill, onSave, onClose }: {
             <option value="">Not linked</option>{tasks.map((t) => <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>)}
           </select></label>
           {taskId && <p className="hint">The task keeps its own deadline. This only blocks out time to work on it.</p>}
+          {spaces.find((sp) => sp.id === spaceId)?.visibility === 'private' && <p className="hint">Private: the title is locked on this device. Your partner sees only that you are busy at this time.</p>}
           <p className="hint">Times are Johannesburg time.{existing?.recur ? ' Changes apply to the whole series; past occurrences stay as they were shown.' : ''}</p>
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="row-end"><button type="button" className="ghost" onClick={onClose}>Cancel</button><button className="primary" disabled={invalid}>Save</button></div>

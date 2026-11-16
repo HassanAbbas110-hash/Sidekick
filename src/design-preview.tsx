@@ -8,6 +8,9 @@ import { Approvals, TrashView } from './ui/Deletion.tsx';
 import { FilesView } from './ui/Files.tsx';
 import { CalendarView } from './ui/Calendar.tsx';
 import { FocusPanel } from './ui/Focus.tsx';
+import { PrivateSetup, PrivateView } from './ui/Private.tsx';
+import { sealText } from './crypto/vault.ts';
+import type { Item } from './lib/data.ts';
 import type { DeletionRequest } from './lib/data.ts';
 
 // Fictional fixtures answered in place of the database, so the clients screens can be reviewed without signing in.
@@ -107,6 +110,20 @@ const trashMode = location.hash === '#trash';
 const filesMode = location.hash === '#files';
 const calMode = location.hash === '#calendar';
 const focusMode = location.hash === '#focus';
+const setupMode = location.hash === '#setup';
+const privMode = location.hash === '#private';
+// Genuinely encrypted demo rows, decrypted on screen with a key that exists only in this page.
+const demoKey = privMode ? await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']) : null;
+const sealRow = async (id: string, kind: string, title: string, body: string | null, status: string | null): Promise<Item> => ({
+  id, space_id: 'p', kind, title: await sealText(demoKey!, title, id, 'title'), body: body ? await sealText(demoKey!, body, id, 'body') : null,
+  version: 1, created_by: ME, updated_at: '', assignee: null, status: status as Item['status'], due_at: null,
+});
+const privItems: Item[] = privMode ? [
+  await sealRow('p1', 'task', 'Book follow-up with Dr Patel', null, 'open'),
+  await sealRow('p2', 'task', 'Finish chapter 4 summary', 'Focus on the case studies section', 'open'),
+  await sealRow('p3', 'task', 'Renew licence disc', null, 'done'),
+  await sealRow('p4', 'note', 'Study plan for December', 'Mon/Wed: accounting\nTue/Thu: marketing law\nFri: past papers', null),
+] : [];
 const fakeUploads = [
   { op_id: 'u1', space_id: 's', item_id: null, name: 'site-visit-photo.jpg', mime: 'image/jpeg', size: 3400000, sha256: '', blob: new Blob(), state: 'uploading' as const, progress: 0.62, added_at: '' },
   { op_id: 'u2', space_id: 's', item_id: null, name: 'brand-guide.pdf', mime: 'application/pdf', size: 9800000, sha256: '', blob: new Blob(), state: 'failed' as const, error: 'Offline. It will upload when you reconnect.', progress: 0.1, added_at: '' },
@@ -138,7 +155,10 @@ createRoot(document.getElementById('root')!).render(
         <section className="intro"><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
-        {calMode ? <CalendarView userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} nameOf={nameOf} partnerName="Miki"
+        {setupMode ? <PrivateSetup userId={ME} isOwner={false} ownerName="Hassan" partnerName="Hassan" onDone={() => {}} />
+        : privMode ? <PrivateView space={{ id: 'p', name: 'x', visibility: 'private', owner_id: ME }} name="Private" items={privItems} keyFor={demoKey!}
+            queue={async () => {}} onLock={() => {}} isOwner={false} partnerName="Hassan" reload={async () => {}} />
+        : calMode ? <CalendarView userId={ME} privateKey={null} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} nameOf={nameOf} partnerName="Miki"
           queue={async () => {}} pendingCount={0} online prefill={null} onPrefillUsed={() => {}} /> : filesMode ? <FilesView spaceId="s" userId={ME} isOwner={!asMember} online nameOf={nameOf} tasks={[...mine, ...theirs].map((t) => ({ id: t.id, title: t.title }))}
           uploads={fakeUploads} refused={[{ name: 'drone-footage.mov', reason: 'It is 312.0 MB; the limit is 50 MB per file on the current free plan.' }]}
           onPick={async () => {}} onRetry={() => {}} onRemoveUpload={() => {}} onRename={async () => {}} requestFor={() => undefined}

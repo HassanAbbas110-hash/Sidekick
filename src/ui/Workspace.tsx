@@ -10,6 +10,9 @@ import { Approvals, DeleteControls, TrashView } from './Deletion.tsx';
 import { FilesView } from './Files.tsx';
 import { CalendarView, type Prefill } from './Calendar.tsx';
 import { FocusPanel, FocusPill } from './Focus.tsx';
+import { PrivateSetup, PrivateView, Unlock } from './Private.tsx';
+import { lock, storedKey } from '../lib/keystore.ts';
+import { loadPrivacyNotices, reveal, vaultRemote, type PrivacyNotice } from '../lib/data.ts';
 import { loadTimer, type Timer } from '../lib/focus.ts';
 import { clearTimerAlarms, scheduleTimerAlarms } from '../lib/alarms.ts';
 import { enqueue, listQueue, processQueue, removeFromQueue, type QueuedUpload } from '../lib/uploads.ts';
@@ -88,7 +91,15 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
   const [filesKey, setFilesKey] = useState(0);
   const uploading = useRef(false);
-  const [page, setPage] = useState<'space' | 'calendar'>('space');
+  const [page, setPage] = useState<'space' | 'calendar' | 'private-setup'>('space');
+  const [privKey, setPrivKey] = useState<CryptoKey | null>(null);
+  const [vaultExists, setVaultExists] = useState<boolean | null>(null);
+  const [privateNames, setPrivateNames] = useState<Record<string, string>>({});
+  const [notices, setNotices] = useState<PrivacyNotice[]>([]);
+  useEffect(() => {
+    storedKey(userId).then((k) => setPrivKey(k ?? null)).catch(() => setPrivKey(null));
+    vaultRemote(userId).get().then((v) => setVaultExists(Boolean(v))).catch(() => setVaultExists(null));
+  }, [userId]);
   const [prefill, setPrefill] = useState<Prefill>(null);
   const [timer, setTimer] = useState<Timer | null>(() => loadTimer(userId));
   const [focusOpen, setFocusOpen] = useState(false);
@@ -241,12 +252,21 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     if (waiting && !confirm(`${waiting} change(s) have not reached the server yet. They stay on this device for this account and sync when you sign in here again. Sign out anyway?`)) return;
     await disablePush().catch(() => {}); // stop this phone receiving this account's pushes
     await clearTimerAlarms();
+    await lock(userId).catch(() => {}); // the private area is locked on sign-out
     await supabase.auth.signOut();
     await dropCache(userId); // the read copy is re-downloadable; unsent changes (outbox) are kept
     await dropKept(userId); // kept files are re-downloadable too; queued uploads stay for this account
   }
 
   const space = spaces.find((s) => s.id === spaceId);
+  const privateSpaces = spaces.filter((s) => s.visibility === 'private' && s.owner_id === userId);
+  const ownerName = nameOf(profiles.find((p) => p.role === 'owner')?.id ?? null);
+  useEffect(() => {
+    Promise.all(privateSpaces.map(async (s) => [s.id, (await reveal(privKey, s.name, s.id, 'name')) ?? 'Private (locked)'] as const))
+      .then((pairs) => setPrivateNames(Object.fromEntries(pairs)));
+  }, [privKey, privateSpaces.map((s) => s.id + s.name).join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isOwnerNow = profiles.find((p) => p.id === userId)?.role === 'owner';
+  useEffect(() => { if (isOwnerNow && inboxOpen) loadPrivacyNotices().then(setNotices).catch(() => {}); }, [isOwnerNow, inboxOpen]);
   const rows = buildRows(items, pending, spaceId, sync.state === 'failed');
   const tasks = rows.filter((r) => r.kind === 'task');
   const notes = rows.filter((r) => r.kind === 'note');
@@ -277,7 +297,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
 
       {focusOpen && <FocusPanel userId={userId} timer={timer} setTimer={setTimer} queue={queue} nameOf={nameOf} online={sync.state !== 'offline'}
         tasks={tasks.filter((t) => t.status !== 'done' && t.version).map((t) => ({ id: t.id, title: t.title }))} onClose={() => setFocusOpen(false)} />}
-      {inboxOpen && <Inbox items={inbox} push={push} onClose={() => setInboxOpen(false)}
+      {inboxOpen && <Inbox items={inbox} push={push} notices={notices} nameOf={nameOf} onClose={() => setInboxOpen(false)}
         onRead={async (ids) => { await markRead(ids).catch(() => {}); await reloadInbox(); }} />}
 
       {savedCopy && <p className="notice warn" role="status">Showing what this device saved at {clock.format(new Date(savedCopy))}. Changes from {partnerName} since then will appear when you reconnect.</p>}
@@ -300,11 +320,32 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
             ))}
           </ul>
           <NewSpace onCreate={async (name) => { await createSharedSpace(name, userId); await refresh(); }} />
+          <p className="rail-title rail-private">Private</p>
+          {vaultExists === false ? (
+            <button className={page === 'private-setup' ? 'space on' : 'space'} onClick={() => setPage('private-setup')}><span className="space-dot lock-dot" aria-hidden />Set up your private area</button>
+          ) : (
+            <ul>{privateSpaces.map((s) => (
+              <li key={s.id}>
+                <button className={s.id === spaceId && page === 'space' ? 'space on' : 'space'} aria-current={s.id === spaceId && page === 'space'} onClick={() => { setSpaceId(s.id); setPage('space'); }}>
+                  <span className="space-dot lock-dot" aria-hidden />{privateNames[s.id] ?? '…'}
+                </button>
+              </li>
+            ))}</ul>
+          )}
         </nav>
 
         <main className="stage">
-          {page === 'calendar' ? (
-            <CalendarView userId={userId} spaces={spaces} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
+          {page === 'private-setup' ? (
+            <PrivateSetup userId={userId} isOwner={isOwnerNow} ownerName={ownerName} partnerName={partnerName}
+              onDone={async (k) => { setPrivKey(k); setVaultExists(true); await refresh(); setPage('space'); }} />
+          ) : page === 'space' && space?.visibility === 'private' ? (
+            privKey ? (
+              <PrivateView space={space} name={privateNames[space.id] ?? 'Private'} items={items} keyFor={privKey} queue={queue}
+                isOwner={isOwnerNow} partnerName={partnerName} reload={reloadItems}
+                onLock={async () => { await lock(userId); setPrivKey(null); }} />
+            ) : <Unlock userId={userId} onUnlocked={(k) => setPrivKey(k)} />
+          ) : page === 'calendar' ? (
+            <CalendarView userId={userId} spaces={spaces} privateKey={privKey} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
               online={sync.state !== 'offline'} prefill={prefill} onPrefillUsed={() => setPrefill(null)} />
           ) : !space ? (
             <section className="intro empty-intro">
@@ -596,7 +637,12 @@ const PUSH_NOTE: Record<PushStatus, string> = {
   error: 'This phone could not register for notifications. Updates still collect here.',
 };
 
-export function Inbox({ items, push, onRead, onClose }: { items: Notification[]; push: PushStatus | null; onRead: (ids: string[]) => Promise<void>; onClose: () => void }) {
+const CATEGORY: Record<string, string> = { private_note: 'a private note', private_task: 'a private task', private_file: 'a private file', private_event: 'a private event', private_item: 'a private item' };
+
+export function Inbox({ items, push, onRead, onClose, notices = [], nameOf = () => 'Someone' }: {
+  items: Notification[]; push: PushStatus | null; onRead: (ids: string[]) => Promise<void>; onClose: () => void;
+  notices?: PrivacyNotice[]; nameOf?: (id: string | null) => string;
+}) {
   const unreadIds = items.filter((n) => !n.read_at).map((n) => n.id);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -625,6 +671,16 @@ export function Inbox({ items, push, onRead, onClose }: { items: Notification[];
               </li>
             ))}
           </ul>
+        )}
+        {notices.length > 0 && (
+          <section className="privacy-notices" aria-label="Private deletions">
+            <h3 className="drawer-sub">Private deletions</h3>
+            <p className="hint">Only the kind of item and the time. What it was stays private.</p>
+            <ul className="inbox-list">{notices.map((n) => (
+              <li key={n.id} className="note-row"><span className="note-title">{nameOf(n.actor)} {n.action === 'trashed' ? 'moved' : 'permanently deleted'} {CATEGORY[n.category] ?? 'a private item'}{n.action === 'trashed' ? ' to their trash' : ''}</span>
+                <span className="note-time">{when.format(new Date(n.at))}</span></li>
+            ))}</ul>
+          </section>
         )}
       </aside>
     </>

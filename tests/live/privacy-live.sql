@@ -176,6 +176,24 @@ begin
     perform set_config('role', 'authenticated', true);
   end;
 
+  -- ---------- private-area keys: owner-only, locked form only ----------
+  declare n3 int;
+  begin
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', m, 'role', 'authenticated')::text, true);
+    insert into vaults (user_id, by_passphrase, by_recovery)
+    values (m, '{"v":1,"salt":"s","iv":"i","wrapped":"w","iterations":600000}', '{"v":1,"salt":"s","iv":"i","wrapped":"r","iterations":600000}');
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', h, 'role', 'authenticated')::text, true);
+    select count(*) into n3 from vaults where user_id = m;
+    res := res || jsonb_build_object('owner cannot read the marketer''s locked key', n3 = 0);
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', m, 'role', 'authenticated')::text, true);
+    begin
+      update vaults set by_recovery = '{"v":1,"salt":"x","iv":"x","wrapped":"x","iterations":1}' where user_id = m;
+      res := res || '{"recovery wrapper cannot be swapped": false}';
+    exception when others then
+      res := res || jsonb_build_object('recovery wrapper cannot be swapped', sqlerrm like '%recovery_wrapper_fixed%');
+    end;
+  end;
+
   -- ---------- signed out ----------
   perform set_config('request.jwt.claims', '', true);
   perform set_config('role', 'anon', true);

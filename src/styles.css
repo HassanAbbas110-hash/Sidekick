@@ -596,3 +596,30 @@ label.check input { width: 22px; min-height: 22px; accent-color: var(--gold); }
   .dayview .ag-sub { grid-column: auto; }
   .cal-title { width: 100%; }
 }
+
+/* ---------- private area ---------- */
+.rail-private { margin-top: 18px; }
+.lock-dot { border-radius: 50% !important; background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--gold); transform: none !important; }
+.space.on .lock-dot { background: var(--gold) !important; }
+.private-setup { display: grid; gap: 16px; justify-items: start; max-width: 760px; }
+.private-setup h1 { font-size: clamp(2rem, 4.5vw, 3rem); font-weight: 700; font-stretch: 78%; letter-spacing: -0.03em; }
+.private-setup .lede { font-size: 1.1rem; color: #d9d2e6; max-width: 62ch; }
+.privacy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; width: 100%; }
+.privacy-grid > div { padding: 16px 18px; border-radius: var(--r-md); background: var(--plum); }
+.privacy-grid > div:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.privacy-grid > div:last-child { box-shadow: inset 3px 0 0 var(--ivory); }
+.privacy-grid h3 { font-size: 1.05rem; margin-bottom: 8px; }
+.privacy-grid ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: #d9d2e6; }
+.panel-form.narrow { width: min(460px, 100%); }
+.panel-form.narrow h1, .panel-form.narrow h2 { font-size: 1.5rem; font-stretch: 85%; }
+.recovery-key {
+  font-size: 1.05rem; font-weight: 650; letter-spacing: 0.04em; line-height: 1.7; word-break: break-all; padding: 14px 16px;
+  border-radius: var(--r-md); background: var(--ink); border: 1px dashed var(--gold); color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.private { display: grid; gap: 20px; }
+.private-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+.private-head h1 { font-size: clamp(2.4rem, 5.5vw, 4.2rem); font-weight: 700; font-stretch: 78%; letter-spacing: -0.035em; line-height: 0.95; }
+.task-title.static { cursor: default; }
+.task-title.static:hover { color: inherit; }
+.private-note { box-shadow: inset 0 3px 0 var(--gold); }
+.privacy-notices { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 6px; }

@@ -59,13 +59,15 @@ Options:
 
 **Decision (Hassan, 2026-11-16): option 2, encrypt on device.** Applies to private note bodies, titles and file bytes. Search of private items is on-device only.
 
-Design to prove in Stage 0:
+Implemented 2026-11-16 (0009 vaults, src/lib/keystore.ts, src/ui/Private.tsx):
 - Each user generates a random 256-bit data key on first login. It is wrapped by a key derived from their passphrase (PBKDF2-SHA256, high iteration count, or Argon2 if a vetted WASM build is used) and stored server-side only in wrapped form.
 - A one-time recovery key is shown to the user at setup for them to keep offline. Without the passphrase or the recovery key, private data is unrecoverable. Neither Hassan nor the server can reset it.
 - Ciphertext is AES-256-GCM with a random 96-bit IV per record or file. Item id and field name are bound as associated data, so moving ciphertext to another row or field fails to decrypt. (Version is not bound: that would force re-encrypting every field on each edit.)
 - Metadata that stays visible to the infrastructure owner: private row existence, owner, timestamps, sizes and fixed categories. Busy times and session durations are shared by design anyway.
 - Changing the passphrase re-wraps the data key only. It does not re-encrypt the data.
-- The marketer's onboarding must explain the recovery-key duty and what metadata remains visible.
+- The marketer's onboarding explains the recovery-key duty and what metadata remains visible (done in PrivateSetup).
+- The unlocked key is kept on each device as a non-extractable CryptoKey in IndexedDB until Lock or sign-out. Trade-off: anyone holding an unlocked device can open the private area.
+- Private files are not yet supported (bytes must be encrypted before upload); the Files tab is not offered in private spaces.
 
 ## 4. Sync protocol
 

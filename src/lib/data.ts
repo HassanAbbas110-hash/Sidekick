@@ -1,4 +1,7 @@
 import { supabase } from './supabase.ts';
+import type { Remote } from './keystore.ts';
+import type { WrappedKey } from '../crypto/vault.ts';
+import { openText, sealText } from '../crypto/vault.ts';
 import type { Op, OpResult } from '../sync/outbox.ts';
 
 export type Space = { id: string; name: string; visibility: 'shared' | 'private'; owner_id: string | null };
@@ -168,3 +171,42 @@ export const loadFocusSummaries = async (fromDay: string, toDay: string) =>
 export const loadMySessions = async (sinceIso: string) =>
   check(await supabase.from('focus_sessions').select('id, mode, started_at, ended_at, paused_seconds, completed, adjust_seconds, adjust_reason')
     .gte('started_at', sinceIso).order('started_at', { ascending: false })) as FocusSession[];
+
+// ---------- private area ----------
+
+export const vaultRemote = (userId: string): Remote => ({
+  get: async () => {
+    const rows = check(await supabase.from('vaults').select('by_passphrase, by_recovery').eq('user_id', userId)) as { by_passphrase: WrappedKey; by_recovery: WrappedKey }[];
+    return rows[0] ?? null;
+  },
+  create: async (p, r) => { check(await supabase.from('vaults').insert({ user_id: userId, by_passphrase: p, by_recovery: r })); },
+  setPassphraseWrapper: async (p) => { check(await supabase.from('vaults').update({ by_passphrase: p }).eq('user_id', userId)); },
+});
+
+/** Private space: the name is encrypted on this device, bound to the space id. */
+export async function createPrivateSpace(userId: string, key: CryptoKey, name: string) {
+  const id = crypto.randomUUID();
+  check(await supabase.from('spaces').insert({ id, name: await sealText(key, name, id, 'name'), visibility: 'private', owner_id: userId, created_by: userId }));
+  return id;
+}
+
+/** Decrypt a private field; plain text (shared items) passes through unchanged. */
+export async function reveal(key: CryptoKey | null, value: string | null, id: string, field: string): Promise<string | null> {
+  if (!value || !value.startsWith('enc1:')) return value;
+  if (!key) return null;
+  try { return await openText(key, value, id, field); } catch { return null; }
+}
+
+export const hide = (key: CryptoKey, value: string | null, id: string, field: string) =>
+  value ? sealText(key, value, id, field) : Promise.resolve(null);
+
+export type PrivacyNotice = { id: string; actor: string; category: string; action: 'trashed' | 'deleted'; at: string };
+export const loadPrivacyNotices = async () =>
+  check(await supabase.from('private_deletion_notices').select('id, actor, category, action, at').order('at', { ascending: false }).limit(50)) as PrivacyNotice[];
+
+export async function setPrivateTrashed(id: string, trashed: boolean) {
+  check(await supabase.from('items').update({ deleted_at: trashed ? new Date().toISOString() : null }).eq('id', id));
+}
+export async function deletePrivateForGood(id: string) { check(await supabase.from('items').delete().eq('id', id)); }
+export const loadPrivateTrash = async (spaceId: string) =>
+  check(await supabase.from('items').select('id, kind, title, deleted_at').eq('space_id', spaceId).not('deleted_at', 'is', null)) as { id: string; kind: string; title: string | null; deleted_at: string }[];
