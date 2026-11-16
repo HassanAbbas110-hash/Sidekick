@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react';
-import { addLink, forget, getKept, keepOffline, keptSummary, loadFiles, loadLinks, loadVersions, projectUsage, removeLink, setReview, signedUrl, signedUrls,
+import { addLink, loadClientLinks, forget, getKept, keepOffline, keptSummary, loadFiles, loadLinks, loadVersions, projectUsage, removeLink, setReview, signedUrl, signedUrls,
   type FileLink, type FileRow, type FileVersion, type Review } from '../lib/files.ts';
 import { loadClients, type Client, type DeletionRequest } from '../lib/data.ts';
 import { withCache } from '../lib/cache.ts';
@@ -17,11 +17,13 @@ type Props = {
   spaceId: string; userId: string; isOwner: boolean; online: boolean; nameOf: (id: string | null) => string;
   tasks: { id: string; title: string | null }[];
   uploads: QueuedUpload[]; refused: { name: string; reason: string }[];
-  onPick: (files: File[], itemId?: string | null) => Promise<void>; onRetry: () => void; onRemoveUpload: (opId: string) => void;
+  onPick: (files: File[], itemId?: string | null, clientId?: string | null) => Promise<void>; onRetry: () => void; onRemoveUpload: (opId: string) => void;
   onRename: (f: FileRow, title: string, body: string | null) => Promise<void>;
   requestFor: (id: string) => DeletionRequest | undefined;
   onAskDelete: (f: FileRow, reason: string) => Promise<void>; onTrash: (f: FileRow) => Promise<void>;
   refreshKey: number; focusId?: string | null;
+  /** Show only this client's files; new uploads are filed under it. */
+  clientId?: string | null;
 };
 
 export function FilesView(p: Props) {
@@ -32,12 +34,23 @@ export function FilesView(p: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
+  const [byClient, setByClient] = useState<Map<string, Set<string>>>(new Map()); // client id -> file ids
+  const [clients, setClients] = useState<Client[]>([]);
+  const [filter, setFilter] = useState<string>('all'); // 'all' | 'none' | client id
 
   const reload = useCallback(async () => {
     try {
       const fs = (await withCache(p.userId, `files:${p.spaceId}`, () => loadFiles(p.spaceId))).value;
       setFiles(fs);
       setKept(await keptSummary(p.userId));
+      const [links, cs] = await Promise.all([
+        withCache(p.userId, `file-clients:${p.spaceId}`, () => loadClientLinks(fs.map((f) => f.id))).then((r) => r.value).catch(() => []),
+        withCache(p.userId, `clients:${p.spaceId}`, () => loadClients(p.spaceId)).then((r) => r.value).catch(() => [] as Client[]),
+      ]);
+      const m = new Map<string, Set<string>>();
+      for (const l of links) m.set(l.target_client, (m.get(l.target_client) ?? new Set()).add(l.file_id));
+      setByClient(m);
+      setClients(cs);
       if (navigator.onLine) {
         setThumbs(await signedUrls(fs.filter((f) => f.mime.startsWith('image/')).map((f) => f.storage_path)));
         setUsed(await projectUsage());
@@ -50,25 +63,41 @@ export function FilesView(p: Props) {
   useEffect(() => { reload(); }, [reload, p.refreshKey]);
   useEffect(() => { if (p.focusId) setOpenId(p.focusId); }, [p.focusId]);
 
-  const pending = p.uploads.filter((u) => u.space_id === p.spaceId);
+  const pending = p.uploads.filter((u) => u.space_id === p.spaceId && (!p.clientId || u.client_id === p.clientId));
   const open = files.find((f) => f.id === openId);
-  const drop = (e: DragEvent) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) p.onPick([...e.dataTransfer.files]); };
+  const pick = (list: File[]) => p.onPick(list, null, p.clientId ?? (filter !== 'all' && filter !== 'none' ? filter : null));
+  const drop = (e: DragEvent) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) pick([...e.dataTransfer.files]); };
+  const filedSomewhere = new Set([...byClient.values()].flatMap((s) => [...s]));
+  const want = p.clientId ?? filter;
+  const shown = want === 'all' ? files : want === 'none' ? files.filter((f) => !filedSomewhere.has(f.id)) : files.filter((f) => byClient.get(want)?.has(f.id));
+  const withFiles = clients.filter((c) => byClient.get(c.id)?.size);
 
   return (
     <section className={`files${dragging ? ' dragging' : ''}`} aria-label="Files"
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
       <div className="files-bar">
         <label className="file-pick primary-look">
-          Add files<input type="file" multiple onChange={(e) => { p.onPick([...(e.target.files ?? [])]); e.target.value = ''; }} />
+          Add files<input type="file" multiple onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ''; }} />
         </label>
         <label className="file-pick">
-          Take a photo<input type="file" accept="image/*" capture="environment" onChange={(e) => { p.onPick([...(e.target.files ?? [])]); e.target.value = ''; }} />
+          Take a photo<input type="file" accept="image/*" capture="environment" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ''; }} />
         </label>
         <p className="usage">
           {used !== null && <>{size(used)} of the free plan's 1 GB used</>}
           {kept.bytes > 0 && <>{used !== null ? '; ' : ''}{size(kept.bytes)} kept on this device</>}
         </p>
       </div>
+      {!p.clientId && withFiles.length > 0 && (
+        <div className="file-filter" role="radiogroup" aria-label="Show files for">
+          {[{ id: 'all', name: 'All files', n: files.length }, ...withFiles.map((c) => ({ id: c.id, name: c.name, n: byClient.get(c.id)!.size })), { id: 'none', name: 'Not filed', n: files.filter((f) => !filedSomewhere.has(f.id)).length }]
+            .map((o) => (
+              <button key={o.id} role="radio" aria-checked={filter === o.id} className={filter === o.id ? 'on' : ''} onClick={() => setFilter(o.id)}>
+                {o.id !== 'all' && o.id !== 'none' && <span className="mono" aria-hidden>{o.name.trim().charAt(0).toUpperCase()}</span>}{o.name} <span className="lane-count">{o.n}</span>
+              </button>
+            ))}
+        </div>
+      )}
+      {!p.clientId && filter !== 'all' && filter !== 'none' && <p className="hint">New files you add now are filed under {clients.find((c) => c.id === filter)?.name}.</p>}
       <p className="hint drop-hint">Drag files here on a laptop. Up to 50 MB each. Pictures, PDFs and plain text preview here; other types download.</p>
 
       {p.refused.length > 0 && (
@@ -93,11 +122,12 @@ export function FilesView(p: Props) {
         </ul>
       )}
 
-      {files.length === 0 && pending.length === 0 ? (
-        <p className="quiet">No files in this space yet. Add logos, briefs, screenshots of what was agreed, or proof of payment.</p>
+      {shown.length === 0 && pending.length === 0 ? (
+        <p className="quiet">{p.clientId ? 'No files for this client yet. Add their logo, brief, signed quote or proof of payment, and they stay together here.'
+          : want === 'all' ? 'No files in this space yet. Add logos, briefs, screenshots of what was agreed, or proof of payment.' : 'Nothing here.'}</p>
       ) : (
         <ul className="gallery">
-          {files.map((f) => (
+          {shown.map((f) => (
             <li key={f.id}>
               <button className="tile" onClick={() => setOpenId(f.id)}>
                 <span className="tile-art">

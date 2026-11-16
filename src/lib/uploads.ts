@@ -5,7 +5,7 @@
 export const MAX_BYTES = 50 * 1024 * 1024; // Supabase free plan per-file limit (also enforced by the server)
 
 export type QueuedUpload = {
-  op_id: string; space_id: string; item_id: string | null; name: string; mime: string; size: number; sha256: string;
+  op_id: string; space_id: string; item_id: string | null; client_id?: string | null; name: string; mime: string; size: number; sha256: string;
   blob: Blob; state: 'queued' | 'uploading' | 'failed'; error?: string; progress: number; added_at: string;
   reserved?: { item_id: string; version: number; path: string };
 };
@@ -14,6 +14,8 @@ export type UploadDeps = {
   begin: (u: QueuedUpload) => Promise<{ item_id: string; version: number; path: string }>;
   put: (path: string, u: QueuedUpload, onProgress: (fraction: number) => void) => Promise<'stored' | 'already_stored'>;
   finish: (itemId: string, version: number) => Promise<string>;
+  /** File it under a client once it is safely stored. Must be safe to repeat. */
+  linkClient?: (fileId: string, clientId: string) => Promise<void>;
 };
 
 const dbName = (userId: string) => `sidekick-uploads-${userId}`;
@@ -47,13 +49,13 @@ export async function sha256Hex(blob: Blob) {
 }
 
 /** Queue files. Too-large files are refused here with a clear reason, never silently dropped. */
-export async function enqueue(userId: string, files: File[], spaceId: string, itemId: string | null = null, idb: IDBFactory = indexedDB) {
+export async function enqueue(userId: string, files: File[], spaceId: string, itemId: string | null = null, clientId: string | null = null, idb: IDBFactory = indexedDB) {
   const refused: { name: string; reason: string }[] = [];
   for (const f of files) {
     if (f.size === 0) { refused.push({ name: f.name, reason: 'The file is empty.' }); continue; }
     if (f.size > MAX_BYTES) { refused.push({ name: f.name, reason: `It is ${(f.size / 1048576).toFixed(1)} MB; the limit is 50 MB per file on the current free plan.` }); continue; }
     const u: QueuedUpload = {
-      op_id: crypto.randomUUID(), space_id: spaceId, item_id: itemId, name: f.name || 'photo.jpg', mime: f.type || 'application/octet-stream',
+      op_id: crypto.randomUUID(), space_id: spaceId, item_id: itemId, client_id: clientId, name: f.name || 'photo.jpg', mime: f.type || 'application/octet-stream',
       size: f.size, sha256: await sha256Hex(f), blob: f, state: 'queued', progress: 0, added_at: new Date().toISOString(),
     };
     await tx(userId, idb, 'readwrite', (s) => s.put(u));
@@ -85,6 +87,8 @@ export async function processQueue(userId: string, deps: UploadDeps, onChange: (
       await deps.put(u.reserved.path, u, (fraction) => { u.progress = fraction; onChange([u]); });
       const result = await deps.finish(u.reserved.item_id, u.reserved.version);
       if (result.startsWith('verified')) {
+        // linked before leaving the queue, so a dropped connection here retries the link instead of losing it
+        if (u.client_id && deps.linkClient) await deps.linkClient(u.reserved.item_id, u.client_id);
         await removeFromQueue(userId, u.op_id, idb);
         verified++;
       } else {

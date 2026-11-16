@@ -108,6 +108,7 @@ if (['#clients', '#files', '#calendar', '#focus', '#search', '#today', '#week', 
     ]);
     if (table === 'items' && url.searchParams.get('kind') === 'eq.task') return json([{ id: 'a2', space_id: 's', title: 'Send deposit reminder to Lumen Studio', due_at: at(1, 16, 30), assignee: 'me', status: 'open' }]);
     if (url.pathname.includes('/storage/v1/object/sign/')) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (table === 'file_links' && (url.searchParams.get('file_id') ?? '').startsWith('in.')) return json(FIX.file_links.filter((l) => (l as { target_client: string | null }).target_client));
     if (table === 'file_versions' || table === 'file_links') {
       const key = table === 'file_versions' ? 'item_id' : 'file_id';
       const want = (url.searchParams.get(key) ?? '').replace(/^eq[.]/, '');
@@ -226,7 +227,9 @@ createRoot(document.getElementById('root')!).render(
           onAskDelete={async () => {}} onTrash={async () => {}} refreshKey={0} /> : trashMode ? <TrashView isOwner={!asMember} requests={[]} nameOf={nameOf} onAskRestore={async () => {}} onRestore={async () => {}} onPurge={async () => {}} items={[
           { id: 't1', kind: 'note', title: 'Old pricing sheet (2025)', body: null, version: 2, deleted_at: soon(-30), created_by: MIKI },
           { id: 't2', kind: 'task', title: 'Call printer about flyers', body: null, version: 4, deleted_at: soon(-80), created_by: ME },
-        ]} /> : clientsMode ? <ClientsView spaceId="s" userId={ME} nameOf={nameOf} pending={[]} queue={async () => {}} online /> : <>
+        ]} /> : clientsMode ? <ClientsView spaceId="s" userId={ME} nameOf={nameOf} pending={[]} queue={async () => {}} online focusId={location.search.includes('client') ? 'c1' : null}
+          renderFiles={(cid) => <FilesView clientId={cid} spaceId="s" userId={ME} isOwner online nameOf={nameOf} tasks={[]} uploads={[]} refused={[]} onPick={async () => {}} onRetry={() => {}}
+            onRemoveUpload={() => {}} onRename={async () => {}} requestFor={() => undefined} onAskDelete={async () => {}} onTrash={async () => {}} refreshKey={0} />} /> : <>
         {!asMember && <Approvals requests={[fakeReq]} nameOf={nameOf} onDecide={async () => 'approved'} />}
         <QuickAdd userId={ME} partnerId={MIKI} partnerName="Miki" onAdd={async () => {}} />
         <div className="side-switch"><button className="on you">Your side <b>3</b></button><button className="them">Miki <b>2</b></button></div>

@@ -18,9 +18,11 @@ const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(ne
 type Props = {
   spaceId: string; userId: string; nameOf: (id: string | null) => string; pending: Op[];
   queue: (op: Op) => Promise<void>; online: boolean; focusId?: string | null;
+  /** The client's own files (logos, briefs, quotes), drawn by the Files screen in client mode. */
+  renderFiles?: (clientId: string) => import('react').ReactNode;
 };
 
-export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, focusId }: Props) {
+export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, focusId, renderFiles }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, f
   if (open) {
     return <ClientDetail client={open} userId={userId} nameOf={nameOf} pending={pending.filter((p) => p.type === 'call' && p.client_id === open.id)}
       queue={queue} online={online} onBack={() => setOpenId(null)}
-      onSaved={(c) => setClients((cs) => cs.map((x) => (x.id === c.id ? c : x)))} reloadList={reload} />;
+      onSaved={(c) => setClients((cs) => cs.map((x) => (x.id === c.id ? c : x)))} reloadList={reload} renderFiles={renderFiles} />;
   }
 
   return (
@@ -156,9 +158,10 @@ function NewClient({ online, onCreate, onCancel }: { online: boolean; onCreate: 
 type DetailProps = {
   client: Client; userId: string; nameOf: (id: string | null) => string; pending: Op[]; queue: (op: Op) => Promise<void>;
   online: boolean; onBack: () => void; onSaved: (c: Client) => void; reloadList: () => Promise<void>;
+  renderFiles?: (clientId: string) => import('react').ReactNode;
 };
 
-function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBack, onSaved, reloadList }: DetailProps) {
+function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBack, onSaved, reloadList, renderFiles }: DetailProps) {
   const [money, setMoney] = useState<ClientMoney | null>(null);
   const [form, setForm] = useState<'payment' | 'charge' | 'agreement' | null>(null);
   const [notice, setNotice] = useState('');
@@ -222,6 +225,13 @@ function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBac
           {c.notes && <><dt>Notes</dt><dd className="pre">{c.notes}</dd></>}
           <dd className="facts-edit"><button className="ghost" onClick={() => setEditing(true)}>Edit details</button></dd>
         </dl>
+      )}
+
+      {renderFiles && (
+        <section className="client-files" aria-label={`${c.name} files`}>
+          <h3>Files</h3>
+          {renderFiles(c.id)}
+        </section>
       )}
 
       <div className="money-head">

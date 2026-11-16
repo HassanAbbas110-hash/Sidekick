@@ -27,6 +27,10 @@ export const loadVersions = async (itemId: string) =>
   check(await supabase.from('file_versions').select('item_id, version, storage_path, original_name, mime, size_bytes, sha256, state, review, uploaded_by, uploaded_at')
     .eq('item_id', itemId).order('version', { ascending: false })) as FileVersion[];
 
+/** Which client each file in a list is filed under (for the per-client filter). */
+export const loadClientLinks = async (fileIds: string[]) =>
+  fileIds.length ? check(await supabase.from('file_links').select('file_id, target_client').in('file_id', fileIds).not('target_client', 'is', null)) as { file_id: string; target_client: string }[] : [];
+
 export const loadLinks = async (fileId: string) =>
   check(await supabase.from('file_links').select('file_id, target_item, target_client').eq('file_id', fileId)) as FileLink[];
 
@@ -75,6 +79,11 @@ export const uploadDeps: UploadDeps = {
       p_op_id: u.op_id, p_space: u.space_id, p_item: u.item_id, p_name: u.name, p_mime: u.mime, p_size: u.size, p_sha256: u.sha256,
     })) as { item_id: string; version: number; path: string };
     return { item_id: r.item_id, version: r.version, path: r.path };
+  },
+  linkClient: async (fileId, clientId) => {
+    const { data } = await supabase.auth.getSession();
+    const r = await supabase.from('file_links').insert({ file_id: fileId, target_item: null, target_client: clientId, linked_by: data.session?.user.id });
+    if (r.error && r.error.code !== '23505') throw new Error(r.error.message); // 23505: already linked on an earlier try
   },
   // XHR rather than fetch so the screen can show real upload progress.
   put: async (path, u, onProgress) => {

@@ -1144,3 +1144,14 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 .sync-live { color: var(--sage); }
 .sync-live .sync-dot { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sage) 60%, transparent); animation: live-ring 2.4s ease-out infinite; }
 @keyframes live-ring { 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+
+/* files filed per client */
+.file-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.file-filter button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 6px; font-size: 0.9rem; color: var(--mist); background: transparent; }
+.file-filter button:first-child, .file-filter button:last-child { padding-left: 14px; }
+.file-filter button.on { color: var(--ivory); background: var(--plum-2); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.file-filter button.on .mono { background: var(--gold-grad); color: var(--ink); border-color: transparent; }
+.file-filter .mono { width: 24px; height: 24px; border-radius: 8px; font-size: 0.8rem; }
+.client-files { display: grid; gap: 12px; padding: 18px 0 6px; border-top: 1px solid var(--line); }
+.client-files h3 { font-size: 1.2rem; font-stretch: 85%; }
+.client-files .gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }

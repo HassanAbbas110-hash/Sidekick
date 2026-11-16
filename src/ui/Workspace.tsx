@@ -368,6 +368,19 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     + pending.filter((o) => o.type === 'call' && o.fn === 'add_comment' && o.args.p_item === id).length;
   const renderThread = (id: string): ReactNode => <Thread itemId={id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} refreshKey={threadKey} />;
 
+  // The Files screen, for the whole space or (with a client) for one client's page.
+  const renderFilesFor = (clientId: string | null): ReactNode => !space ? null : (
+                <FilesView key={clientId ?? 'all'} clientId={clientId} spaceId={space.id} userId={userId} isOwner={isOwner} online={sync.state !== 'offline'} nameOf={nameOf}
+                  tasks={rows.filter((r) => r.kind !== 'file' && r.version).map((r) => ({ id: r.id, title: r.title }))}
+                  uploads={uploads} refused={refused} refreshKey={filesKey} focusId={jump?.kind === 'file' ? jump.id : null}
+                  onPick={async (files, itemId, cid) => { setRefused(await enqueue(userId, files, space.id, itemId ?? null, cid ?? null)); setUploads(await listQueue(userId)); runUploads(); }}
+                  onRetry={runUploads} onRemoveUpload={async (op) => { await removeFromQueue(userId, op); setUploads(await listQueue(userId)); }}
+                  onRename={async (f, title, body) => { await queue({ op_id: crypto.randomUUID(), type: 'update', id: f.id, base_version: f.item_version, fields: { title, body } }); setFilesKey((k) => k + 1); }}
+                  requestFor={deletion.requestFor}
+                  onAskDelete={async (f, reason) => { await requestDeletion(f.id, f.item_version, reason, 'delete', userId); await afterDeletion(); setFilesKey((k) => k + 1); }}
+                  onTrash={async (f) => { await trashItem(f.id); await afterDeletion(); setFilesKey((k) => k + 1); }} />
+  );
+
   const onSchedule = (row: Row) => { if (!space) return; setPrefill({ space_id: space.id, task_id: row.id, title: `Work on: ${row.title ?? 'task'}` }); setPage('calendar'); };
   const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule, reminderFor, onRemind, onCancelRemind, commentCount, renderThread };
 
@@ -521,17 +534,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                   onRestore={async (t) => { await restoreItem(t.id); await afterDeletion(); }}
                   onPurge={async (t) => { await (t.kind === 'file' ? purgeFile(t.id) : purgeItem(t.id)); await afterDeletion(); setFilesKey((k) => k + 1); }} />
               ) : view === 'files' ? (
-                <FilesView spaceId={space.id} userId={userId} isOwner={isOwner} online={sync.state !== 'offline'} nameOf={nameOf}
-                  tasks={rows.filter((r) => r.kind !== 'file' && r.version).map((r) => ({ id: r.id, title: r.title }))}
-                  uploads={uploads} refused={refused} refreshKey={filesKey} focusId={jump?.kind === 'file' ? jump.id : null}
-                  onPick={async (files, itemId) => { setRefused(await enqueue(userId, files, space.id, itemId ?? null)); setUploads(await listQueue(userId)); runUploads(); }}
-                  onRetry={runUploads} onRemoveUpload={async (op) => { await removeFromQueue(userId, op); setUploads(await listQueue(userId)); }}
-                  onRename={async (f, title, body) => { await queue({ op_id: crypto.randomUUID(), type: 'update', id: f.id, base_version: f.item_version, fields: { title, body } }); setFilesKey((k) => k + 1); }}
-                  requestFor={deletion.requestFor}
-                  onAskDelete={async (f, reason) => { await requestDeletion(f.id, f.item_version, reason, 'delete', userId); await afterDeletion(); setFilesKey((k) => k + 1); }}
-                  onTrash={async (f) => { await trashItem(f.id); await afterDeletion(); setFilesKey((k) => k + 1); }} />
+                renderFilesFor(null)
               ) : view === 'clients' ? (
-                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} focusId={jump?.kind === 'client' ? jump.id : null} />
+                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} focusId={jump?.kind === 'client' ? jump.id : null} renderFiles={(cid) => renderFilesFor(cid)} />
               ) : (<>
               {isOwner && <Approvals requests={requests} nameOf={nameOf} onDecide={async (r, ok) => { const out = await decideRequest(r.id, ok); await afterDeletion(); return out; }} />}
               <QuickAdd partnerName={partnerName} partnerId={partner?.id ?? null} userId={userId} onAdd={addItem} />

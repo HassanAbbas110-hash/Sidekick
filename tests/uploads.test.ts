@@ -49,3 +49,21 @@ test('upload queue: a file the server has not confirmed is never treated as uplo
   assert.equal(await processQueue(user, deps, () => {}), 0);
   assert.equal((await listQueue(user))[0].state, 'failed');
 });
+
+test('upload queue: a file added from a client page is filed under that client before it leaves the queue', async () => {
+  const user = randomUUID();
+  await enqueue(user, [file('logo.svg', 200)], 'space', null, 'client-1');
+  const linked: string[] = [];
+  let failLink = true;
+  const deps: UploadDeps = {
+    begin: async () => ({ item_id: 'f9', version: 1, path: 'p' }),
+    put: async () => 'stored',
+    finish: async () => 'verified',
+    linkClient: async (fileId, clientId) => { if (failLink) throw new Error('Offline'); linked.push(`${fileId}->${clientId}`); },
+  };
+  assert.equal(await processQueue(user, deps, () => {}), 0, 'link failed: kept in the queue');
+  failLink = false;
+  assert.equal(await processQueue(user, deps, () => {}), 1);
+  assert.deepEqual(linked, ['f9->client-1']);
+  assert.equal((await listQueue(user)).length, 0);
+});
