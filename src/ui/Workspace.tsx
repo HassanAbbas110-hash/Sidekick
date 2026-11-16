@@ -7,6 +7,9 @@ import { Outbox, type Fields, type Op } from '../sync/outbox.ts';
 import { Mark } from './Mark.tsx';
 import { ClientsView } from './Clients.tsx';
 import { Approvals, DeleteControls, TrashView } from './Deletion.tsx';
+import { FilesView } from './Files.tsx';
+import { enqueue, listQueue, processQueue, removeFromQueue, type QueuedUpload } from '../lib/uploads.ts';
+import { dropKept, purgeFile, uploadDeps } from '../lib/files.ts';
 import { decideRequest, loadRequests, loadTrash, purgeItem, requestDeletion, restoreItem, trashItem, type DeletionRequest, type TrashedItem } from '../lib/data.ts';
 
 type SyncState = { state: 'synced' | 'syncing' | 'offline' | 'failed'; error?: string };
@@ -76,7 +79,11 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [inboxOpen, setInboxOpen] = useState(false);
   const [push, setPush] = useState<PushStatus | null>(null);
   const [side, setSide] = useState<Side>('you');
-  const [view, setView] = useState<'tasks' | 'clients' | 'trash'>('tasks');
+  const [view, setView] = useState<'tasks' | 'clients' | 'files' | 'trash'>('tasks');
+  const [uploads, setUploads] = useState<QueuedUpload[]>([]);
+  const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
+  const [filesKey, setFilesKey] = useState(0);
+  const uploading = useRef(false);
   const [requests, setRequests] = useState<DeletionRequest[]>([]);
   const [trash, setTrash] = useState<TrashedItem[]>([]);
   const [arrived, setArrived] = useState<{ id: string; to: Side } | null>(null);
@@ -129,6 +136,20 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     }
   }, [spaceId, userId]);
 
+  // Uploads keep going whichever tab is open; one run at a time.
+  const runUploads = useCallback(async () => {
+    if (uploading.current || !navigator.onLine) { setUploads(await listQueue(userId).catch(() => [])); return; }
+    uploading.current = true;
+    try {
+      const done = await processQueue(userId, uploadDeps, (q) => setUploads((cur) => q.length === 1 && cur.some((c) => c.op_id === q[0].op_id)
+        ? cur.map((c) => (c.op_id === q[0].op_id ? { ...q[0] } : c)) : q));
+      if (done) setFilesKey((k) => k + 1);
+    } finally {
+      uploading.current = false;
+      setUploads(await listQueue(userId).catch(() => []));
+    }
+  }, [userId]);
+
   const reloadDeletion = useCallback(async () => {
     if (!spaceId) return;
     try {
@@ -156,17 +177,18 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   useEffect(() => { reloadItems(); reloadDeletion(); }, [reloadItems, reloadDeletion]);
   useEffect(() => {
     flush();
-    const onOnline = () => { refresh(); reloadItems(); reloadInbox(); flush(); };
+    const onOnline = () => { refresh(); reloadItems(); reloadInbox(); flush(); runUploads(); };
     const onOffline = () => setSync({ state: 'offline' });
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); reloadDeletion(); }, 30_000); // shortcut: polling; realtime later
+    runUploads();
+    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); reloadDeletion(); runUploads(); }, 30_000); // shortcut: polling; realtime later
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       clearInterval(timer);
     };
-  }, [flush, refresh, reloadItems, reloadInbox, reloadDeletion]);
+  }, [flush, refresh, reloadItems, reloadInbox, reloadDeletion, runUploads]);
 
   const partner = profiles.find((p) => p.id !== userId);
   const partnerName = partner ? partner.display_name || cap(partner.email.split('@')[0]) : 'Your partner';
@@ -211,12 +233,13 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     await disablePush().catch(() => {}); // stop this phone receiving this account's pushes
     await supabase.auth.signOut();
     await dropCache(userId); // the read copy is re-downloadable; unsent changes (outbox) are kept
+    await dropKept(userId); // kept files are re-downloadable too; queued uploads stay for this account
   }
 
   const space = spaces.find((s) => s.id === spaceId);
   const rows = buildRows(items, pending, spaceId, sync.state === 'failed');
   const tasks = rows.filter((r) => r.kind === 'task');
-  const notes = rows.filter((r) => r.kind !== 'task');
+  const notes = rows.filter((r) => r.kind === 'note');
   const mine = tasks.filter((t) => t.assignee === userId);
   const theirs = tasks.filter((t) => t.assignee && t.assignee !== userId);
   const loose = tasks.filter((t) => !t.assignee && t.status !== 'done').sort(byUrgency);
@@ -283,6 +306,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
               <div className="views" role="tablist" aria-label="What to show">
                 <button role="tab" aria-selected={view === 'tasks'} className={view === 'tasks' ? 'on' : ''} onClick={() => setView('tasks')}>Tasks and notes</button>
                 <button role="tab" aria-selected={view === 'clients'} className={view === 'clients' ? 'on' : ''} onClick={() => setView('clients')}>Clients and money</button>
+                <button role="tab" aria-selected={view === 'files'} className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Files{uploads.length ? ` (${uploads.length} uploading)` : ''}</button>
                 <button role="tab" aria-selected={view === 'trash'} className={view === 'trash' ? 'on' : ''} onClick={() => setView('trash')}>Trash{trash.length ? ` (${trash.length})` : ''}</button>
               </div>
 
@@ -290,7 +314,17 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                 <TrashView items={trash} isOwner={isOwner} requests={requests} nameOf={nameOf}
                   onAskRestore={async (t, reason) => { await requestDeletion(t.id, t.version, reason, 'restore', userId); await afterDeletion(); }}
                   onRestore={async (t) => { await restoreItem(t.id); await afterDeletion(); }}
-                  onPurge={async (t) => { await purgeItem(t.id); await afterDeletion(); }} />
+                  onPurge={async (t) => { await (t.kind === 'file' ? purgeFile(t.id) : purgeItem(t.id)); await afterDeletion(); setFilesKey((k) => k + 1); }} />
+              ) : view === 'files' ? (
+                <FilesView spaceId={space.id} userId={userId} isOwner={isOwner} online={sync.state !== 'offline'} nameOf={nameOf}
+                  tasks={rows.filter((r) => r.kind !== 'file' && r.version).map((r) => ({ id: r.id, title: r.title }))}
+                  uploads={uploads} refused={refused} refreshKey={filesKey}
+                  onPick={async (files, itemId) => { setRefused(await enqueue(userId, files, space.id, itemId ?? null)); setUploads(await listQueue(userId)); runUploads(); }}
+                  onRetry={runUploads} onRemoveUpload={async (op) => { await removeFromQueue(userId, op); setUploads(await listQueue(userId)); }}
+                  onRename={async (f, title, body) => { await queue({ op_id: crypto.randomUUID(), type: 'update', id: f.id, base_version: f.item_version, fields: { title, body } }); setFilesKey((k) => k + 1); }}
+                  requestFor={deletion.requestFor}
+                  onAskDelete={async (f, reason) => { await requestDeletion(f.id, f.item_version, reason, 'delete', userId); await afterDeletion(); setFilesKey((k) => k + 1); }}
+                  onTrash={async (f) => { await trashItem(f.id); await afterDeletion(); setFilesKey((k) => k + 1); }} />
               ) : view === 'clients' ? (
                 <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} />
               ) : (<>

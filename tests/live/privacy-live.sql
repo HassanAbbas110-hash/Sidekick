@@ -140,6 +140,42 @@ begin
     end;
   end;
 
+  -- ---------- files and storage rules (spec A12) ----------
+  declare
+    up jsonb; fin text; n2 int;
+  begin
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', m, 'role', 'authenticated')::text, true);
+    up := begin_file_upload(gen_random_uuid(), shared_space, null, 'live check.jpg', 'image/jpeg', 2048, repeat('a', 64));
+    res := res || jsonb_build_object('A12 unfinished upload not available',
+      not exists (select 1 from files_current where id = (up->>'item_id')::uuid));
+    res := res || jsonb_build_object('A12 not uploaded yet is refused', finish_file_upload((up->>'item_id')::uuid, 1) = 'not_uploaded');
+    insert into storage.objects (bucket_id, name, owner_id, metadata)
+    values ('sidekick-files', up->>'path', m::text, '{"size": 2048, "mimetype": "image/jpeg"}');
+    res := res || jsonb_build_object('A12 verified only after bytes exist', finish_file_upload((up->>'item_id')::uuid, 1) = 'verified');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id, metadata)
+      values ('sidekick-files', shared_space || '/' || gen_random_uuid() || '/v1-sneaky.jpg', m::text, '{"size": 1}');
+      res := res || '{"storage refuses unreserved uploads": false}';
+    exception when insufficient_privilege or check_violation then
+      res := res || '{"storage refuses unreserved uploads": true}';
+    end;
+    begin
+      update storage.objects set metadata = '{"size": 1}' where name = up->>'path';
+      get diagnostics n2 = row_count;
+      res := res || jsonb_build_object('storage never overwrites a version', n2 = 0);
+    exception when insufficient_privilege then
+      res := res || '{"storage never overwrites a version": true}';
+    end;
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', h, 'role', 'authenticated')::text, true);
+    select count(*) into n2 from storage.objects where name = up->>'path';
+    res := res || jsonb_build_object('partner can read shared file', n2 = 1);
+    perform set_config('request.jwt.claims', '', true);
+    perform set_config('role', 'anon', true);
+    select count(*) into n2 from storage.objects where bucket_id = 'sidekick-files';
+    res := res || jsonb_build_object('signed-out sees no files', n2 = 0);
+    perform set_config('role', 'authenticated', true);
+  end;
+
   -- ---------- signed out ----------
   perform set_config('request.jwt.claims', '', true);
   perform set_config('role', 'anon', true);

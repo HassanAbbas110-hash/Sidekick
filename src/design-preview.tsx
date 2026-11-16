@@ -5,6 +5,7 @@ import { Mark } from './ui/Mark.tsx';
 import { BellIcon, Inbox, Lane, QuickAdd, SyncPill, TaskCard, type Row } from './ui/Workspace.tsx';
 import { ClientsView } from './ui/Clients.tsx';
 import { Approvals, TrashView } from './ui/Deletion.tsx';
+import { FilesView } from './ui/Files.tsx';
 import type { DeletionRequest } from './lib/data.ts';
 
 // Fictional fixtures answered in place of the database, so the clients screens can be reviewed without signing in.
@@ -32,11 +33,28 @@ const FIX: Record<string, unknown[]> = {
     { id: 'a1', client_id: 'c1', title: 'Website build', inclusions: '5 pages, booking form, 2 revision rounds', currency: 'ZAR', price_minor: 170000, deposit_minor: 50000, billing: 'once', starts_on: '2026-11-01', ends_on: null, created_by: 'me' },
   ],
 };
-if (location.hash === '#clients') {
+FIX.files_current = [
+  { id: 'f1', space_id: 's', title: 'Bright Dental logo (final)', body: 'From Dr Khumalo by email, 12 Nov.', created_by: 'miki', updated_at: '', item_version: 3, version: 2, storage_path: 's/f1/v2-logo.svg', original_name: 'BD-logo-final.svg', mime: 'image/svg+xml', size_bytes: 48213, sha256: 'b'.repeat(64), review: 'approved', uploaded_by: 'me', uploaded_at: new Date().toISOString() },
+  { id: 'f2', space_id: 's', title: 'Signed quote', body: null, created_by: 'me', updated_at: '', item_version: 1, version: 1, storage_path: 's/f2/v1-quote.pdf', original_name: 'Quote-BD-0042.pdf', mime: 'application/pdf', size_bytes: 210400, sha256: 'c'.repeat(64), review: 'received', uploaded_by: 'me', uploaded_at: new Date().toISOString() },
+  { id: 'f3', space_id: 's', title: 'Homepage copy v3', body: null, created_by: 'miki', updated_at: '', item_version: 1, version: 1, storage_path: 's/f3/v1-copy.docx', original_name: 'homepage-copy-v3.docx', mime: 'application/msword', size_bytes: 31200, sha256: 'd'.repeat(64), review: 'reviewing', uploaded_by: 'miki', uploaded_at: new Date().toISOString() },
+  { id: 'f4', space_id: 's', title: 'Proof of deposit', body: 'Screenshot from client. Not a confirmed receipt.', created_by: 'miki', updated_at: '', item_version: 1, version: 1, storage_path: 's/f4/v1-proof.png', original_name: 'IMG_2041.png', mime: 'image/png', size_bytes: 812000, sha256: 'e'.repeat(64), review: null, uploaded_by: 'miki', uploaded_at: new Date().toISOString() },
+];
+FIX.file_versions = [
+  { item_id: 'f1', version: 2, storage_path: 's/f1/v2-logo.svg', original_name: 'BD-logo-final.svg', mime: 'image/svg+xml', size_bytes: 48213, sha256: 'b'.repeat(64), state: 'verified', review: 'approved', uploaded_by: 'me', uploaded_at: new Date().toISOString() },
+  { item_id: 'f1', version: 1, storage_path: 's/f1/v1-logo.svg', original_name: 'BD-logo.svg', mime: 'image/svg+xml', size_bytes: 47002, sha256: 'f'.repeat(64), state: 'verified', review: 'used', uploaded_by: 'miki', uploaded_at: '2026-11-01T10:00:00Z' },
+];
+FIX.file_links = [{ file_id: 'f1', target_item: 'a1', target_client: null }, { file_id: 'f1', target_item: null, target_client: 'c1' }];
+if (location.hash === '#clients' || location.hash === '#files') {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const table = url.pathname.match(/\/rest\/v1\/(\w+)/)?.[1];
+    if (url.pathname.includes('/storage/v1/object/sign/')) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (table === 'file_versions' || table === 'file_links') {
+      const key = table === 'file_versions' ? 'item_id' : 'file_id';
+      const want = (url.searchParams.get(key) ?? '').replace(/^eq[.]/, '');
+      return new Response(JSON.stringify(FIX[table].filter((r) => (r as Record<string, string>)[key] === want)), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (table && FIX[table]) {
       const q = url.searchParams.get('client_id') ?? '';
       const ids = q.startsWith('eq.') ? [q.slice(3)] : q.startsWith('in.(') ? q.slice(4, -1).split(',') : null;
@@ -70,6 +88,11 @@ const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, rea
 const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
 const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion };
 const trashMode = location.hash === '#trash';
+const filesMode = location.hash === '#files';
+const fakeUploads = [
+  { op_id: 'u1', space_id: 's', item_id: null, name: 'site-visit-photo.jpg', mime: 'image/jpeg', size: 3400000, sha256: '', blob: new Blob(), state: 'uploading' as const, progress: 0.62, added_at: '' },
+  { op_id: 'u2', space_id: 's', item_id: null, name: 'brand-guide.pdf', mime: 'application/pdf', size: 9800000, sha256: '', blob: new Blob(), state: 'failed' as const, error: 'Offline. It will upload when you reconnect.', progress: 0.1, added_at: '' },
+];
 const inbox = location.hash === '#inbox';
 const clientsMode = location.hash === '#clients';
 
@@ -95,7 +118,10 @@ createRoot(document.getElementById('root')!).render(
         <section className="intro"><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
-        {trashMode ? <TrashView isOwner={!asMember} requests={[]} nameOf={nameOf} onAskRestore={async () => {}} onRestore={async () => {}} onPurge={async () => {}} items={[
+        {filesMode ? <FilesView spaceId="s" userId={ME} isOwner={!asMember} online nameOf={nameOf} tasks={[...mine, ...theirs].map((t) => ({ id: t.id, title: t.title }))}
+          uploads={fakeUploads} refused={[{ name: 'drone-footage.mov', reason: 'It is 312.0 MB; the limit is 50 MB per file on the current free plan.' }]}
+          onPick={async () => {}} onRetry={() => {}} onRemoveUpload={() => {}} onRename={async () => {}} requestFor={() => undefined}
+          onAskDelete={async () => {}} onTrash={async () => {}} refreshKey={0} /> : trashMode ? <TrashView isOwner={!asMember} requests={[]} nameOf={nameOf} onAskRestore={async () => {}} onRestore={async () => {}} onPurge={async () => {}} items={[
           { id: 't1', kind: 'note', title: 'Old pricing sheet (2025)', body: null, version: 2, deleted_at: soon(-30), created_by: MIKI },
           { id: 't2', kind: 'task', title: 'Call printer about flyers', body: null, version: 4, deleted_at: soon(-80), created_by: ME },
         ]} /> : clientsMode ? <ClientsView spaceId="s" userId={ME} nameOf={nameOf} pending={[]} queue={async () => {}} online /> : <>

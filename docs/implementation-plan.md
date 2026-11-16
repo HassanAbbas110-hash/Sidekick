@@ -31,7 +31,8 @@ Progress (2026-11-16):
 - [ ] Hassan: Firebase service-account key into Supabase secrets; google-services.json into GitHub secret; then real-phone notification matrix (A7)
 - [x] Visual direction pulled forward at Hassan's request (2026-11-16): "two sides of one S" — gold = you, ivory = your partner, a seam between lanes; tasks live on the side of whoever is responsible and travel across on handover. Bricolage Grotesque bundled for offline use. Dark-first. Checked at 1360px and 390px with fictional data (design-preview.html, dev only); not yet reviewed on Hassan's phone.
 - [x] Deletion lifecycle (0006 + screens): ask to delete with reason, Hassan's decision panel, stale-version refusal, trash with restore / ask to restore, permanent deletion only by Hassan from the trash with typed DELETE; content-free purge log; inbox text scrubbed. Online-only by design.
-- [ ] Private spaces + vault unlock, comments
+- [x] Files and photos (0007 + Files tab): private bucket, files as items (trash/approval/notifications apply), immutable versions with original name, type, size, SHA-256, uploader and time; upload only available after server verifies stored size; durable on-device upload queue with progress and retry; per-version labels; links to tasks/notes/clients without copying; keep-on-this-device; storage used vs free plan; permanent delete removes record then bytes. Shared spaces only until private encryption.
+- [ ] Private spaces + vault unlock, comments, file export
 
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.
 
