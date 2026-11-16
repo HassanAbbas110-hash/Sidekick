@@ -9,9 +9,11 @@ Stages follow spec §18. A stage does not start until the previous gate is revie
 - [x] GitHub repo `Sidekick`, `origin` connected, push verified by ls-remote readback
 - [x] Privacy option chosen: encrypt on device (architecture.md §3)
 - [ ] Hassan approves overall architecture
-- [ ] Supabase project (free) + Firebase project (FCM) created by Hassan
+- [x] Supabase project `Sidekick` (free, eu-west-3) created; migration 0001 applied; live checks 18/18
+- [ ] Firebase project (FCM) connected
+- [ ] Follow-up migration: type the empty arrays in apply_op (lint warning), revoke Supabase's default anon/authenticated table grants so access relies on explicit grants as well as RLS
 - [x] Proofs without accounts: DB privacy/deletion rules, outbox exactly-once, on-device encryption (21 automated tests)
-- [ ] Proofs needing accounts/devices: real Supabase re-run, FCM push to phone, Capacitor offline restart, private file storage
+- [ ] Proofs needing devices: FCM push to phone, Capacitor offline restart, private file storage
 
 ## Stage 1 — secure vertical slice
 App shell (Vite/React/Capacitor), invite-only auth, shared/private spaces, client record, note, task assignment, evidence file, outbox sync, conflict rows, inbox + push, deletion request/approval. Demonstrated on two identities across two devices.

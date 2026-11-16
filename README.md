@@ -14,6 +14,8 @@ npm test
 
 The database tests run on PGlite (in-memory Postgres) with stand-ins for Supabase auth. They touch no real database.
 
+`npm run test:live` repeats the key checks on the linked Supabase project inside one transaction that is always rolled back. It needs `npx supabase login` and `npx supabase link --project-ref acpyiscfzjsnvpxtukge` first.
+
 - Specification: [docs/specification.md](docs/specification.md)
 - Architecture decision (proposed): [docs/architecture.md](docs/architecture.md)
 - Plan: [docs/implementation-plan.md](docs/implementation-plan.md)

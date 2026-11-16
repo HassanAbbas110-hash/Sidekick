@@ -94,6 +94,6 @@ Nothing paid is enabled without Hassan's explicit approval.
 
 1. Outbox exactly-once logic and conflict preservation: **automated-test verified** (`tests/sync.test.ts`, IndexedDB via fake-indexeddb, PGlite). Still to do: the same on a real Capacitor APK that is restarted offline.
 2. FCM push to a real phone with the app swiped away. Record the result per Android state.
-3. Database privacy and deletion rules: **automated-test verified** (`tests/privacy.test.ts`) on PGlite with stand-in auth. Still to do: re-run against a real Supabase project. Private *file* storage rules are not built yet.
+3. Database privacy and deletion rules: **automated-test verified** (`tests/privacy.test.ts`) on PGlite with stand-in auth. Re-run on the hosted Sidekick project on 2026-11-16: 18/18 checks pass (`npm run test:live`, fixtures rolled back). Private *file* storage rules are not built yet.
 4. Signed private-file download via short-lived URL; expired URL rejected. Not started (needs Supabase Storage).
 5. On-device encryption: **automated-test verified** in Node (`tests/vault.test.ts`). Still to do: run in the Android WebView and measure unlock time (PBKDF2 at 600k iterations) on a real phone.
