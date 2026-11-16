@@ -85,6 +85,10 @@ export const loadClients = async (spaceId: string) =>
 export const loadBalances = async (clientIds: string[]) =>
   clientIds.length ? check(await supabase.from('client_balances').select('*').in('client_id', clientIds)) as Balance[] : [];
 
+/** Payments received since a day (YYYY-MM-DD) for these clients, for the weekly review. */
+export const loadPaymentsSince = async (clientIds: string[], fromDay: string) =>
+  clientIds.length ? check(await supabase.from('payment_ledger').select('*').in('client_id', clientIds).gte('received_on', fromDay)) as Payment[] : [];
+
 export async function loadClientMoney(clientId: string): Promise<ClientMoney> {
   const [charges, payments, agreements] = await Promise.all([
     supabase.from('charge_balances').select('*').eq('client_id', clientId).order('due_on'),

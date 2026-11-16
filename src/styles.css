@@ -884,3 +884,67 @@ kbd { font: inherit; font-size: 0.72rem; padding: 2px 7px; border-radius: 6px; b
   .ribbon-hour:nth-child(even) { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .plate-item { transition: none; } .plate-item:hover { transform: none; } }
+
+/* ---------- weekly review ---------- */
+.week-dot { background: var(--ivory) !important; border-radius: 2px; }
+.weekly { display: grid; gap: 34px; }
+.week-hero { display: grid; gap: 10px; }
+.week-hero h1 { font-size: clamp(2.4rem, 6vw, 4.6rem); font-weight: 700; font-stretch: 75%; letter-spacing: -0.04em; line-height: 0.95; }
+.week-step { display: flex; align-items: center; gap: 4px; margin-left: -10px; }
+.week-step .icon-btn { width: 44px; min-height: 44px; padding: 0; font-size: 1.5rem; }
+
+.seam-chart { display: grid; gap: 12px; padding: 18px clamp(12px, 3vw, 24px) 14px; border-radius: var(--r-lg); background: var(--plum); border: 1px solid var(--line); }
+.seam-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; }
+.seam-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }
+.seam-legend .you::before { background: var(--gold-grad); }
+.seam-legend .them::before { background: var(--ivory); }
+.seam-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: clamp(6px, 2vw, 18px); }
+.seam-days li { display: grid; justify-items: center; }
+.seam-up, .seam-down { width: min(34px, 70%); display: flex; }
+.seam-up { align-items: flex-end; height: 110px; }
+.seam-down { align-items: flex-start; height: 80px; }
+.seam-up span, .seam-down span { display: block; width: 100%; min-height: 2px; transition: height 0.6s var(--ease); }
+.seam-up span { background: var(--gold-grad); border-radius: 8px 8px 2px 2px; }
+.seam-down span { background: var(--ivory); opacity: 0.85; border-radius: 2px 2px 8px 8px; }
+.seam-day { width: 100%; text-align: center; font-size: 0.78rem; color: var(--mist); padding: 5px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.seam-days li.is-today .seam-day { color: var(--gold); font-weight: 700; border-color: var(--gold-deep); }
+
+.week-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.week-figures > div { display: grid; gap: 4px; align-content: start; padding: 18px 18px 18px 0; }
+.week-figures > div + div { padding-left: 18px; border-left: 1px solid var(--line); }
+.week-figures h3 { font-size: 0.85rem; font-weight: 600; color: var(--mist); }
+.vs { color: var(--mist); font-weight: 500; }
+
+.week-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(18px, 3vw, 36px); align-items: start; }
+.week-cols h2 { font-size: 1.3rem; font-stretch: 85%; letter-spacing: -0.02em; margin-bottom: 10px; }
+.week-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.week-list li { display: grid; gap: 1px; padding: 8px 0 8px 14px; position: relative; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.week-list li::before { content: ''; position: absolute; left: 0; top: 13px; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.week-list li.you::before { background: var(--gold); }
+.week-list li.them::before { background: var(--ivory); }
+.week-list li.late::before { background: var(--coral); }
+.week-list li.event::before { border-radius: 2px; background: var(--gold-deep); }
+.wl-btn { display: grid; gap: 1px; width: 100%; height: auto; min-height: 0; padding: 0; border: 0; background: none; text-align: left; border-radius: 4px; }
+.wl-title { font-weight: 560; overflow-wrap: anywhere; }
+.wl-meta { font-size: 0.82rem; color: var(--mist); }
+.late .wl-meta { color: var(--coral); }
+
+.reflect { display: grid; gap: 12px; padding: clamp(16px, 3vw, 26px); border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--line));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 7%, var(--plum)), var(--plum) 60%); }
+.reflect h2 { font-size: 1.5rem; font-stretch: 85%; letter-spacing: -0.02em; }
+.reflect-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.reflect-grid label { display: grid; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+.reflect .row-end { align-items: center; flex-wrap: wrap; }
+.inline-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--mist); }
+.inline-pick select { width: auto; min-height: 40px; }
+.saved-note { color: var(--sage); font-size: 0.9rem; }
+
+@media (max-width: 820px) {
+  .weekly { gap: 26px; }
+  .seam-up { height: 84px; }
+  .seam-down { height: 60px; }
+  .week-figures { grid-template-columns: minmax(0, 1fr); }
+  .week-figures > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+  .week-cols, .reflect-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .seam-up span, .seam-down span { transition: none; } }

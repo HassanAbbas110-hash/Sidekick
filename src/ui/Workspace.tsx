@@ -15,6 +15,7 @@ import { PrivateView } from './PrivateRoom.tsx';
 import { LinksStrip, type LinkRow } from './Links.tsx';
 import { SearchPanel } from './Search.tsx';
 import { TodayView } from './Today.tsx';
+import { WeekView } from './Week.tsx';
 import { openLink } from '../lib/links.ts';
 import type { Hit } from '../lib/search.ts';
 import { lock, storedKey } from '../lib/keystore.ts';
@@ -97,7 +98,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
   const [filesKey, setFilesKey] = useState(0);
   const uploading = useRef(false);
-  const [page, setPage] = useState<'today' | 'space' | 'calendar' | 'private-setup'>('today');
+  const [page, setPage] = useState<'today' | 'week' | 'space' | 'calendar' | 'private-setup'>('today');
   const [privKey, setPrivKey] = useState<CryptoKey | null>(null);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
   const [privateNames, setPrivateNames] = useState<Record<string, string>>({});
@@ -379,6 +380,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
           <button className={page === 'today' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'today'} onClick={() => setPage('today')}>
             <span className="space-dot today-dot" aria-hidden />Today
           </button>
+          <button className={page === 'week' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'week'} onClick={() => setPage('week')}>
+            <span className="space-dot week-dot" aria-hidden />Week
+          </button>
           <button className={page === 'calendar' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'calendar'} onClick={() => setPage('calendar')}>
             <span className="space-dot cal-dot" aria-hidden />Calendar
           </button>
@@ -420,6 +424,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
           ) : page === 'today' ? (
             <TodayView userId={userId} name={myName} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} privateKey={privKey} timer={timer}
               refreshKey={pending.length + items.length} onOpenCalendar={() => setPage('calendar')} onFocus={() => setFocusOpen(true)}
+              onOpenTask={(sid, id) => { setSpaceId(sid); setPage('space'); setView('tasks'); setJump({ kind: 'task', id }); }} />
+          ) : page === 'week' ? (
+            <WeekView userId={userId} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} queue={queue} refreshKey={pending.length + items.length}
               onOpenTask={(sid, id) => { setSpaceId(sid); setPage('space'); setView('tasks'); setJump({ kind: 'task', id }); }} />
           ) : page === 'calendar' ? (
             <CalendarView userId={userId} spaces={spaces} privateKey={privKey} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
