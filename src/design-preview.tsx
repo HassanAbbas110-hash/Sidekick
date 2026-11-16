@@ -112,7 +112,7 @@ const theirs = [
 ];
 const loose = [t('c1', 'Find a photographer for the 7 Waves shoot', null, { createdBy: ME })];
 const nameOf = (id: string | null) => (id === ME ? 'You' : id === MIKI ? 'Miki' : 'Anyone');
-const partner = { id: MIKI, email: 'miki@gmail.com', role: 'member' as const, display_name: null };
+const partner = { id: MIKI, email: 'miki@example.test', role: 'member' as const, display_name: null };
 const asMember = location.search.includes('member');
 const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, reason: 'Kasi Coffee sent the files on WhatsApp already, this is a duplicate.', requested_by: MIKI, status: 'pending', action: 'delete', created_at: soon(-2), items: { title: 'Collect logo files from Kasi Coffee', kind: 'task', space_id: 's' } };
 const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
