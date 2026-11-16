@@ -1,20 +1,54 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { loadFocusSummaries, loadMySessions, type FocusSession, type FocusSummary } from '../lib/data.ts';
-import { clock, cyclePhase, elapsedMs, endsAt, looksForgotten, minutes, pause, remainingMs, resume, saveTimer, type Timer } from '../lib/focus.ts';
+import { clock, clockDown, cyclePhase, elapsedMs, looksForgotten, minutes, pause, remainingMs, resume, saveTimer, stopPoint, type Timer } from '../lib/focus.ts';
 import { clearTimerAlarms, scheduleTimerAlarms } from '../lib/alarms.ts';
 import { dayKey, startOfDay } from '../lib/recur.ts';
 import type { Op } from '../sync/outbox.ts';
 
+/** Re-render on every real second change. A plain 1 s interval drifts and skips seconds; this checks 4x a second
+ * and also catches up the moment the app comes back to the foreground. */
 function useTick(active: boolean) {
   const [, set] = useState(0);
-  useEffect(() => { if (!active) return; const t = setInterval(() => set((n) => n + 1), 1000); return () => clearInterval(t); }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    let last = -1;
+    const check = () => { const s = Math.floor(Date.now() / 1000); if (s !== last) { last = s; set(s); } };
+    const t = setInterval(check, 250);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
+  }, [active]);
 }
+
+/** A soft two-note chime, made on the spot (no sound file, works offline). */
+function chime() {
+  try {
+    const ac = new AudioContext();
+    [659.25, 987.77].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * 0.18;
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 1.3);
+    });
+    setTimeout(() => ac.close(), 2000);
+  } catch { /* no audio available */ }
+}
+
+/** Which stage the timer is in; a change means a countdown finished or a cycle switched. */
+const stageOf = (t: Timer | null) => !t || t.paused_at || t.mode === 'stopwatch' ? null
+  : t.mode === 'countdown' ? (remainingMs(t) === 0 ? 'done' : 'run') : `${cyclePhase(t).phase}-${cyclePhase(t).blocksDone}`;
 
 /** The running timer lives in the top bar so it is visible from every screen. */
 export function FocusPill({ timer, onOpen }: { timer: Timer | null; onOpen: () => void }) {
   useTick(Boolean(timer));
+  const stage = stageOf(timer);
+  const prev = useRef<{ id?: string; stage: string | null }>({ stage: null });
+  useEffect(() => {
+    if (prev.current.id === timer?.id && prev.current.stage && stage && stage !== prev.current.stage) chime();
+    prev.current = { id: timer?.id, stage };
+  }, [stage, timer?.id]);
   if (!timer) return <button className="ghost focus-btn" onClick={onOpen} aria-label="Focus timer"><span className="focus-ring" aria-hidden />Focus</button>;
-  const text = timer.mode === 'countdown' ? clock(remainingMs(timer)) : timer.mode === 'cycle' ? `${cyclePhase(timer).phase === 'focus' ? 'Focus' : 'Break'} ${clock(cyclePhase(timer).leftMs)}` : clock(elapsedMs(timer));
+  const text = timer.mode === 'countdown' ? clockDown(remainingMs(timer)) : timer.mode === 'cycle' ? `${cyclePhase(timer).phase === 'focus' ? 'Focus' : 'Break'} ${clockDown(cyclePhase(timer).leftMs)}` : clock(elapsedMs(timer));
   return (
     <button className={`focus-pill${timer.paused_at ? ' paused' : ''}`} onClick={onOpen} aria-label={`Focus timer ${timer.paused_at ? 'paused' : 'running'}, ${text}`}>
       <span className="focus-dot" aria-hidden />{text}
@@ -57,12 +91,11 @@ export function FocusPanel({ userId, timer, setTimer, queue, nameOf, tasks, onCl
 
   async function stop(completed: boolean) {
     if (!timer) return;
-    const now = Date.now();
-    const pausedMs = timer.paused_ms + (timer.paused_at ? now - timer.paused_at : 0);
+    const end = stopPoint(timer);
     update(null);
     setEnding(false);
     await queue({ op_id: crypto.randomUUID(), type: 'call', fn: 'end_focus', label: 'Focus session ended',
-      args: { p_id: timer.id, p_ended_at: new Date(timer.paused_at ?? now).toISOString(), p_paused_seconds: Math.round(pausedMs / 1000), p_completed: completed } });
+      args: { p_id: timer.id, p_ended_at: new Date(end.ended_at).toISOString(), p_paused_seconds: end.paused_seconds, p_completed: completed } });
     await reload();
   }
 
@@ -109,7 +142,7 @@ function Running({ timer, ending, setEnding, onPause, onResume, onStop }: {
   const total = timer.mode === 'countdown' ? (timer.planned_seconds ?? 1) * 1000 : phase ? ((phase.phase === 'focus' ? timer.planned_seconds : timer.break_seconds) ?? 1) * 1000 : 0;
   const left = timer.mode === 'countdown' ? remainingMs(timer) : phase?.leftMs ?? 0;
   const progress = total ? 1 - left / total : (elapsedMs(timer) % 3600_000) / 3600_000;
-  const big = timer.mode === 'stopwatch' ? clock(elapsedMs(timer)) : clock(left);
+  const big = timer.mode === 'stopwatch' ? clock(elapsedMs(timer)) : clockDown(left);
   const done = timer.mode === 'countdown' && left === 0;
   const R = 92, C = 2 * Math.PI * R;
   return (

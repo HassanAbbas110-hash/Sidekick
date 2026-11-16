@@ -71,3 +71,20 @@ test('A13: a timer left running for over 12 hours is flagged for checking', () =
   assert.equal(looksForgotten(timer(), T0 + 13 * 3600_000), true);
   assert.equal(looksForgotten(timer(), T0 + 2 * 3600_000), false);
 });
+
+test('timer display: countdowns round up, stopping records the right end and pause time', async () => {
+  const { clockDown, clock, stopPoint } = await import('../src/lib/focus.ts');
+  assert.equal(clockDown(25 * 60_000 - 1), '25:00', 'first second still shows the full length');
+  assert.equal(clockDown(1), '0:01');
+  assert.equal(clockDown(0), '0:00');
+  assert.equal(clock(59_999), '0:59', 'stopwatch rounds down');
+  const T0 = Date.UTC(2026, 10, 16, 8);
+  const base: Timer = { id: 'x', mode: 'stopwatch', started_at: T0, paused_at: null, paused_ms: 60_000, planned_seconds: null, break_seconds: null, label: '', task_id: null };
+  // paused at +10 min, stopped an hour later: ends at the pause, only the earlier minute of pause counts
+  const paused = { ...base, paused_at: T0 + 10 * 60_000 };
+  assert.deepEqual(stopPoint(paused, T0 + 70 * 60_000), { ended_at: T0 + 10 * 60_000, paused_seconds: 60 });
+  // a 25 min countdown noticed 40 min later ended when it finished
+  const cd = { ...base, mode: 'countdown' as const, paused_ms: 0, planned_seconds: 1500 };
+  assert.equal(stopPoint(cd, T0 + 40 * 60_000).ended_at, T0 + 25 * 60_000);
+  assert.equal(stopPoint(cd, T0 + 5 * 60_000).ended_at, T0 + 5 * 60_000, 'stopped early: ends now');
+});

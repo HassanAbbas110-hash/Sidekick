@@ -35,6 +35,18 @@ export const endsAt = (t: Timer) => (t.mode === 'countdown' && !t.paused_at ? t.
 /** A timer left running far longer than planned is probably forgotten (prompt to check, never auto-correct). */
 export const looksForgotten = (t: Timer, now = Date.now()) => elapsedMs(t, now) > 12 * 3600_000;
 
+/** What to record when a session stops. A paused session ended when it was paused, so time spent paused
+ * after that is not subtracted again; a finished countdown ended at its finish, not when someone noticed. */
+export function stopPoint(t: Timer, now = Date.now()) {
+  let ended = t.paused_at ?? now;
+  const end = t.mode === 'countdown' ? t.started_at + t.paused_ms + (t.planned_seconds ?? 0) * 1000 : Infinity;
+  ended = Math.min(ended, end);
+  return { ended_at: ended, paused_seconds: Math.round(t.paused_ms / 1000) };
+}
+
+/** Countdowns round up, so 25:00 shows for the first second and 0:00 only once it is actually done. */
+export const clockDown = (ms: number) => clock(Math.ceil(ms / 1000) * 1000);
+
 export const clock = (ms: number) => {
   const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;

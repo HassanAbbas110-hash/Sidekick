@@ -12,6 +12,7 @@ import { CalendarView } from './ui/Calendar.tsx';
 import { FocusPanel } from './ui/Focus.tsx';
 import { PrivateSetup } from './ui/Private.tsx';
 import { PrivateView } from './ui/PrivateRoom.tsx';
+import { TodayView } from './ui/Today.tsx';
 import { sealText } from './crypto/vault.ts';
 import type { Item } from './lib/data.ts';
 import type { DeletionRequest } from './lib/data.ts';
@@ -59,7 +60,7 @@ const EVENTS = [
   { id: 'e3', space_id: 's', kind: 'event', title: 'Work on: booking form', body: null, starts_at: at(1, 13), ends_at: at(1, 15), all_day: false, recur: null, task_id: 'a3', version: 1, created_by: 'me' },
   { id: 'e4', space_id: 's', kind: 'event', title: 'Kasi Coffee shoot', body: null, starts_at: at(3, 0), ends_at: at(4, 0), all_day: true, recur: null, task_id: null, version: 1, created_by: 'miki' },
 ];
-if (['#clients', '#files', '#calendar', '#focus', '#search'].includes(location.hash)) {
+if (['#clients', '#files', '#calendar', '#focus', '#search', '#today'].includes(location.hash)) {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
@@ -78,6 +79,15 @@ if (['#clients', '#files', '#calendar', '#focus', '#search'].includes(location.h
     if (table === 'focus_sessions') return json([{ id: 'fs1', mode: 'countdown', started_at: at(0, 7), ended_at: at(0, 7, 50), paused_seconds: 0, completed: true, adjust_seconds: 600, adjust_reason: 'Forgot to start the timer' }]);
     if (table === 'event_exceptions') return json([]);
     if (table === 'items' && url.searchParams.get('kind') === 'eq.event') return json(url.searchParams.get('recur') === 'is.null' ? EVENTS.filter((e) => !e.recur) : EVENTS.filter((e) => e.recur));
+    if (table === 'items' && !url.searchParams.get('kind')) return json([
+      { id: 'a1', space_id: 's', kind: 'task', title: 'Approve homepage copy for Bright Dental', body: null, version: 1, created_by: 'miki', updated_at: at(0, 9), assignee: 'me', status: 'open', due_at: at(0, 9), url: null },
+      { id: 'a2', space_id: 's', kind: 'task', title: 'Send deposit reminder to Lumen Studio', body: null, version: 1, created_by: 'miki', updated_at: at(0, 9), assignee: 'me', status: 'open', due_at: at(0, 17), url: null },
+      { id: 'a3', space_id: 's', kind: 'task', title: 'Record walkthrough video of the booking form', body: null, version: 1, created_by: 'me', updated_at: at(0, 9), assignee: 'me', status: 'in_progress', due_at: null, url: null },
+      { id: 'a5', space_id: 's', kind: 'task', title: 'Renew webrift.co.za hosting', body: null, version: 1, created_by: 'me', updated_at: at(0, 9), assignee: 'me', status: 'open', due_at: at(2, 12), url: null },
+      { id: 'b1', space_id: 's', kind: 'task', title: 'Draft captions', body: null, version: 1, created_by: 'me', updated_at: at(0, 9), assignee: 'miki', status: 'open', due_at: null, url: null },
+      { id: 'b2', space_id: 's', kind: 'task', title: 'Collect logo files', body: null, version: 1, created_by: 'me', updated_at: at(0, 9), assignee: 'miki', status: 'in_progress', due_at: null, url: null },
+      { id: 'c9', space_id: 's', kind: 'task', title: 'Find a photographer', body: null, version: 1, created_by: 'me', updated_at: at(0, 9), assignee: null, status: 'open', due_at: null, url: null },
+    ]);
     if (table === 'items' && url.searchParams.get('kind') === 'eq.task') return json([{ id: 'a2', space_id: 's', title: 'Send deposit reminder to Lumen Studio', due_at: at(1, 16, 30), assignee: 'me', status: 'open' }]);
     if (url.pathname.includes('/storage/v1/object/sign/')) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (table === 'file_versions' || table === 'file_links') {
@@ -174,7 +184,8 @@ createRoot(document.getElementById('root')!).render(
           { id: 'l4', title: 'Client folder', body: 'Logos, briefs, signed quotes', url: 'https://drive.google.com/drive/folders/example', version: 1, pending: true },
         ]} />
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
-        {setupMode ? <PrivateSetup userId={ME} isOwner={false} ownerName="Hassan" partnerName="Hassan" onDone={() => {}} />
+        {location.hash === '#today' ? <TodayView userId={ME} name="Hassan" partnerId={MIKI} partnerName="Miki" spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} privateKey={null} timer={null} refreshKey={0} onOpenTask={() => {}} onOpenCalendar={() => {}} onFocus={() => {}} />
+        : setupMode ? <PrivateSetup userId={ME} isOwner={false} ownerName="Hassan" partnerName="Hassan" onDone={() => {}} />
         : privMode ? <PrivateView space={{ id: 'p', name: 'x', visibility: 'private', owner_id: ME }} name="Private" items={privItems} pending={[]} keyFor={demoKey!}
             queue={async () => {}} onLock={() => {}} isOwner={false} partnerName="Hassan" reload={async () => {}} />
         : calMode ? <CalendarView userId={ME} privateKey={null} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} nameOf={nameOf} partnerName="Miki"

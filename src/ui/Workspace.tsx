@@ -14,6 +14,7 @@ import { PrivateSetup, Unlock } from './Private.tsx';
 import { PrivateView } from './PrivateRoom.tsx';
 import { LinksStrip, type LinkRow } from './Links.tsx';
 import { SearchPanel } from './Search.tsx';
+import { TodayView } from './Today.tsx';
 import { openLink } from '../lib/links.ts';
 import type { Hit } from '../lib/search.ts';
 import { lock, storedKey } from '../lib/keystore.ts';
@@ -96,7 +97,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
   const [filesKey, setFilesKey] = useState(0);
   const uploading = useRef(false);
-  const [page, setPage] = useState<'space' | 'calendar' | 'private-setup'>('space');
+  const [page, setPage] = useState<'today' | 'space' | 'calendar' | 'private-setup'>('today');
   const [privKey, setPrivKey] = useState<CryptoKey | null>(null);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
   const [privateNames, setPrivateNames] = useState<Record<string, string>>({});
@@ -242,6 +243,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   }, [flush, refresh, reloadItems, reloadInbox, reloadDeletion, runUploads]);
 
   const partner = profiles.find((p) => p.id !== userId);
+  const me = profiles.find((p) => p.id === userId);
+  const myName = me?.display_name || cap((me?.email ?? email).split('@')[0]);
   const partnerName = partner ? partner.display_name || cap(partner.email.split('@')[0]) : 'Your partner';
   const nameOf = (id: string | null) => {
     if (!id) return 'Anyone';
@@ -373,6 +376,9 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
 
       <div className="frame">
         <nav className="rail" aria-label="Spaces">
+          <button className={page === 'today' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'today'} onClick={() => setPage('today')}>
+            <span className="space-dot today-dot" aria-hidden />Today
+          </button>
           <button className={page === 'calendar' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'calendar'} onClick={() => setPage('calendar')}>
             <span className="space-dot cal-dot" aria-hidden />Calendar
           </button>
@@ -411,6 +417,10 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
                 isOwner={isOwnerNow} partnerName={partnerName} reload={reloadItems}
                 onLock={async () => { await lock(userId); setPrivKey(null); }} />
             ) : <Unlock userId={userId} onUnlocked={(k) => setPrivKey(k)} />
+          ) : page === 'today' ? (
+            <TodayView userId={userId} name={myName} partnerId={partner?.id ?? null} partnerName={partnerName} spaces={spaces} privateKey={privKey} timer={timer}
+              refreshKey={pending.length + items.length} onOpenCalendar={() => setPage('calendar')} onFocus={() => setFocusOpen(true)}
+              onOpenTask={(sid, id) => { setSpaceId(sid); setPage('space'); setView('tasks'); setJump({ kind: 'task', id }); }} />
           ) : page === 'calendar' ? (
             <CalendarView userId={userId} spaces={spaces} privateKey={privKey} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
               online={sync.state !== 'offline'} prefill={prefill} onPrefillUsed={() => setPrefill(null)} />
