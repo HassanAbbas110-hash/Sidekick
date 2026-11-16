@@ -81,7 +81,7 @@ test('A4: Busy slots show only owner and times, never ids or titles', async () =
   await newItem(db, MARKETER, MARKETER_PRIVATE, { kind: 'note', title: 'enc:not-an-event' });
   const rows = await as(db, HASSAN, `select * from busy_slots('2026-11-17T00:00:00Z', '2026-11-18T00:00:00Z')`);
   assert.equal(rows.length, 1);
-  assert.deepEqual(Object.keys(rows[0]).sort(), ['ends_at', 'starts_at', 'user_id']);
+  assert.deepEqual(Object.keys(rows[0]).sort(), ['all_day', 'ends_at', 'recur', 'starts_at', 'user_id']);
   assert.equal(rows[0].user_id, MARKETER);
 });
 

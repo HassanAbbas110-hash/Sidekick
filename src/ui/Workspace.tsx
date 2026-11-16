@@ -8,6 +8,10 @@ import { Mark } from './Mark.tsx';
 import { ClientsView } from './Clients.tsx';
 import { Approvals, DeleteControls, TrashView } from './Deletion.tsx';
 import { FilesView } from './Files.tsx';
+import { CalendarView, type Prefill } from './Calendar.tsx';
+import { FocusPanel, FocusPill } from './Focus.tsx';
+import { loadTimer, type Timer } from '../lib/focus.ts';
+import { clearTimerAlarms, scheduleTimerAlarms } from '../lib/alarms.ts';
 import { enqueue, listQueue, processQueue, removeFromQueue, type QueuedUpload } from '../lib/uploads.ts';
 import { dropKept, purgeFile, uploadDeps } from '../lib/files.ts';
 import { decideRequest, loadRequests, loadTrash, purgeItem, requestDeletion, restoreItem, trashItem, type DeletionRequest, type TrashedItem } from '../lib/data.ts';
@@ -84,6 +88,11 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
   const [filesKey, setFilesKey] = useState(0);
   const uploading = useRef(false);
+  const [page, setPage] = useState<'space' | 'calendar'>('space');
+  const [prefill, setPrefill] = useState<Prefill>(null);
+  const [timer, setTimer] = useState<Timer | null>(() => loadTimer(userId));
+  const [focusOpen, setFocusOpen] = useState(false);
+  useEffect(() => { if (timer) scheduleTimerAlarms(timer); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- re-arm the alarm after a restart
   const [requests, setRequests] = useState<DeletionRequest[]>([]);
   const [trash, setTrash] = useState<TrashedItem[]>([]);
   const [arrived, setArrived] = useState<{ id: string; to: Side } | null>(null);
@@ -231,6 +240,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     const waiting = box ? (await box.pending()).length : 0;
     if (waiting && !confirm(`${waiting} change(s) have not reached the server yet. They stay on this device for this account and sync when you sign in here again. Sign out anyway?`)) return;
     await disablePush().catch(() => {}); // stop this phone receiving this account's pushes
+    await clearTimerAlarms();
     await supabase.auth.signOut();
     await dropCache(userId); // the read copy is re-downloadable; unsent changes (outbox) are kept
     await dropKept(userId); // kept files are re-downloadable too; queued uploads stay for this account
@@ -246,7 +256,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const active = (list: Row[]) => list.filter((t) => t.status !== 'done');
   const unread = inbox.filter((n) => !n.read_at).length;
 
-  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion };
+  const onSchedule = (row: Row) => { if (!space) return; setPrefill({ space_id: space.id, task_id: row.id, title: `Work on: ${row.title ?? 'task'}` }); setPage('calendar'); };
+  const cardProps = { userId, partner, nameOf, onEdit: editItem, onHandOver: handOver, arrived, deletion, onSchedule };
 
   return (
     <div className="app">
@@ -255,6 +266,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         <span className="wordmark">Sidekick</span>
         <SyncPill sync={sync} waiting={pending.length} />
         <span className="grow" />
+        <FocusPill timer={timer} onOpen={() => setFocusOpen(true)} />
         <button className="ghost inbox-btn" aria-expanded={inboxOpen} aria-controls="inbox" onClick={() => setInboxOpen((o) => !o)}>
           <BellIcon />
           <span className="label-wide">Inbox</span>
@@ -263,6 +275,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         <AccountMenu email={email} onSignOut={signOut} />
       </header>
 
+      {focusOpen && <FocusPanel userId={userId} timer={timer} setTimer={setTimer} queue={queue} nameOf={nameOf} online={sync.state !== 'offline'}
+        tasks={tasks.filter((t) => t.status !== 'done' && t.version).map((t) => ({ id: t.id, title: t.title }))} onClose={() => setFocusOpen(false)} />}
       {inboxOpen && <Inbox items={inbox} push={push} onClose={() => setInboxOpen(false)}
         onRead={async (ids) => { await markRead(ids).catch(() => {}); await reloadInbox(); }} />}
 
@@ -272,11 +286,14 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
 
       <div className="frame">
         <nav className="rail" aria-label="Spaces">
+          <button className={page === 'calendar' ? 'space on cal-link' : 'space cal-link'} aria-current={page === 'calendar'} onClick={() => setPage('calendar')}>
+            <span className="space-dot cal-dot" aria-hidden />Calendar
+          </button>
           <p className="rail-title">Spaces</p>
           <ul>
             {spaces.filter((s) => s.visibility === 'shared').map((s) => (
               <li key={s.id}>
-                <button className={s.id === spaceId ? 'space on' : 'space'} aria-current={s.id === spaceId} onClick={() => setSpaceId(s.id)}>
+                <button className={s.id === spaceId && page === 'space' ? 'space on' : 'space'} aria-current={s.id === spaceId && page === 'space'} onClick={() => { setSpaceId(s.id); setPage('space'); }}>
                   <span className="space-dot" aria-hidden />{s.name}
                 </button>
               </li>
@@ -286,7 +303,10 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
         </nav>
 
         <main className="stage">
-          {!space ? (
+          {page === 'calendar' ? (
+            <CalendarView userId={userId} spaces={spaces} nameOf={nameOf} partnerName={partnerName} queue={queue} pendingCount={pending.length}
+              online={sync.state !== 'offline'} prefill={prefill} onPrefillUsed={() => setPrefill(null)} />
+          ) : !space ? (
             <section className="intro empty-intro">
               <p className="date">{cap(dayLine.format(new Date()))}</p>
               <h1>Start with a shared space</h1>
@@ -393,6 +413,7 @@ type CardProps = {
   userId: string; partner: Profile | undefined; nameOf: (id: string | null) => string;
   onEdit: (row: Row, f: Fields) => Promise<void>; onHandOver: (row: Row, to: string | null) => Promise<void>;
   arrived: { id: string; to: Side } | null;
+  onSchedule: (row: Row) => void;
   deletion: {
     isOwner: boolean; requestFor: (id: string) => DeletionRequest | undefined;
     onAskDelete: (row: Row, reason: string) => Promise<void>; onTrash: (row: Row) => Promise<void>;
@@ -418,7 +439,7 @@ export function Lane({ side, title, rows, empty, ...card }: { side: Side; title:
   );
 }
 
-export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion }: { row: Row; side: Side | 'loose' } & CardProps) {
+export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHandOver, arrived, deletion, onSchedule }: { row: Row; side: Side | 'loose' } & CardProps) {
   const [open, setOpen] = useState(false);
   const done = r.status === 'done';
   const overdue = isOverdue(r);
@@ -455,6 +476,7 @@ export function TaskCard({ row: r, side, userId, partner, nameOf, onEdit, onHand
               {(target || !r.assignee) && (
                 <button className="handover" disabled={!synced} onClick={() => onHandOver(r, target)}>{targetLabel}</button>
               )}
+              {synced && r.status !== 'done' && <button className="ghost" onClick={() => onSchedule(r)}>Schedule time</button>}
             </div>
             <p className="byline">Added by {r.createdBy ? nameOf(r.createdBy) : 'you'}</p>
             {synced && <DeleteControls isOwner={deletion.isOwner} pending={deletion.requestFor(r.id)}

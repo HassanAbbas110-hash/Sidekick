@@ -1,15 +1,17 @@
 // Durable outbox: every local change is queued here and survives app restarts until the server acknowledges it.
 // The server dedupes by op_id (apply_op), so resending after a lost acknowledgement cannot apply anything twice.
 
-export type Fields = Partial<Record<'title' | 'body' | 'starts_at' | 'ends_at' | 'assignee' | 'status' | 'due_at', string | null>>;
+export type Fields = Partial<Record<'title' | 'body' | 'starts_at' | 'ends_at' | 'assignee' | 'status' | 'due_at' | 'task_id', string | null>>
+  & { all_day?: boolean; recur?: { freq: string; interval?: number; byweekday?: number[]; until?: string } | null };
 
 export type Op =
   | { op_id: string; type: 'create'; id: string; space_id: string; kind: string; fields: Fields }
   | { op_id: string; type: 'update'; id: string; base_version: number; fields: Fields }
   // Money and agreement actions: server functions that dedupe by op_id (spec §8: no double-posting on replay).
-  | { op_id: string; type: 'call'; fn: MoneyFn; client_id: string; label: string; args: Record<string, string | number | null> };
+  | { op_id: string; type: 'call'; fn: CallFn; client_id?: string; label: string; args: Record<string, string | number | boolean | null> };
 
 export type MoneyFn = 'record_payment' | 'add_charge' | 'reverse_payment' | 'create_agreement';
+export type CallFn = MoneyFn | 'start_focus' | 'end_focus' | 'adjust_focus';
 
 export type ItemOpResult = { status: 'applied' | 'partial' | 'conflict'; version: number; conflicts: string[]; replayed?: boolean };
 export type OpResult = ItemOpResult | { status: 'called'; result: unknown };

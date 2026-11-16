@@ -130,3 +130,41 @@ export async function trashItem(id: string) { check(await supabase.rpc('trash_it
 export async function purgeItem(id: string) { check(await supabase.rpc('purge_item', { p_item: id, p_confirm: 'DELETE' })); }
 /** Hassan restoring directly from the trash (the database allows this for the owner only). */
 export async function restoreItem(id: string) { check(await supabase.from('items').update({ deleted_at: null }).eq('id', id)); }
+
+// ---------- calendar and focus ----------
+export type CalEvent = {
+  id: string; space_id: string; kind: string; title: string | null; body: string | null; starts_at: string; ends_at: string;
+  all_day: boolean; recur: import('./recur.ts').Recur | null; task_id: string | null; version: number; created_by: string;
+};
+export type DueTask = { id: string; space_id: string; title: string | null; due_at: string; assignee: string | null; status: TaskStatus | null };
+export type BusySlot = { user_id: string; starts_at: string; ends_at: string; all_day: boolean; recur: import('./recur.ts').Recur | null };
+export type FocusSummary = { user_id: string; day: string; measured_seconds: number; adjusted_seconds: number; sessions: number; completed: number; running: boolean };
+export type FocusSession = { id: string; mode: string; started_at: string; ended_at: string | null; paused_seconds: number; completed: boolean | null; adjust_seconds: number; adjust_reason: string | null };
+
+export async function loadCalendar(from: Date, to: Date) {
+  const f = from.toISOString(), t = to.toISOString();
+  const [ev, rec, due, busy] = await Promise.all([
+    supabase.from('items').select('id, space_id, kind, title, body, starts_at, ends_at, all_day, recur, task_id, version, created_by')
+      .eq('kind', 'event').is('deleted_at', null).is('recur', null).lt('starts_at', t).gt('ends_at', f),
+    supabase.from('items').select('id, space_id, kind, title, body, starts_at, ends_at, all_day, recur, task_id, version, created_by')
+      .eq('kind', 'event').is('deleted_at', null).not('recur', 'is', null).lt('starts_at', t),
+    supabase.from('items').select('id, space_id, title, due_at, assignee, status').eq('kind', 'task').is('deleted_at', null).gte('due_at', f).lt('due_at', t),
+    supabase.rpc('busy_slots', { p_from: f, p_to: t }),
+  ]);
+  const recurring = check(rec) as CalEvent[];
+  const skips = recurring.length
+    ? check(await supabase.from('event_exceptions').select('item_id, occurrence_start').in('item_id', recurring.map((r) => r.id))) as { item_id: string; occurrence_start: string }[]
+    : [];
+  return { events: [...(check(ev) as CalEvent[]), ...recurring], due: check(due) as DueTask[], busy: check(busy) as BusySlot[], skips };
+}
+
+export async function skipOccurrence(itemId: string, occurrenceStart: string, userId: string) {
+  check(await supabase.from('event_exceptions').insert({ item_id: itemId, occurrence_start: occurrenceStart, created_by: userId }));
+}
+
+export const loadFocusSummaries = async (fromDay: string, toDay: string) =>
+  check(await supabase.rpc('focus_summaries', { p_from: fromDay, p_to: toDay })) as FocusSummary[];
+
+export const loadMySessions = async (sinceIso: string) =>
+  check(await supabase.from('focus_sessions').select('id, mode, started_at, ended_at, paused_seconds, completed, adjust_seconds, adjust_reason')
+    .gte('started_at', sinceIso).order('started_at', { ascending: false })) as FocusSession[];

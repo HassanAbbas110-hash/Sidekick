@@ -99,7 +99,7 @@ begin
 
   select string_agg(k, ',' order by k) into t
     from (select jsonb_object_keys(to_jsonb(b)) as k from busy_slots('2026-11-17', '2026-11-18') b) x;
-  res := res || jsonb_build_object('A4 busy slots carry only owner and times', t = 'ends_at,starts_at,user_id');
+  res := res || jsonb_build_object('A4 busy slots carry only owner and times', t = 'all_day,ends_at,recur,starts_at,user_id');
   select count(*) into n from private_deletion_notices where actor = m and category = 'private_note' and action = 'trashed';
   res := res || jsonb_build_object('A6 owner gets redacted notice', n = 1);
 

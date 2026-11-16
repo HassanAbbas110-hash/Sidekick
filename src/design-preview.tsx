@@ -6,6 +6,8 @@ import { BellIcon, Inbox, Lane, QuickAdd, SyncPill, TaskCard, type Row } from '.
 import { ClientsView } from './ui/Clients.tsx';
 import { Approvals, TrashView } from './ui/Deletion.tsx';
 import { FilesView } from './ui/Files.tsx';
+import { CalendarView } from './ui/Calendar.tsx';
+import { FocusPanel } from './ui/Focus.tsx';
 import type { DeletionRequest } from './lib/data.ts';
 
 // Fictional fixtures answered in place of the database, so the clients screens can be reviewed without signing in.
@@ -44,11 +46,25 @@ FIX.file_versions = [
   { item_id: 'f1', version: 1, storage_path: 's/f1/v1-logo.svg', original_name: 'BD-logo.svg', mime: 'image/svg+xml', size_bytes: 47002, sha256: 'f'.repeat(64), state: 'verified', review: 'used', uploaded_by: 'miki', uploaded_at: '2026-11-01T10:00:00Z' },
 ];
 FIX.file_links = [{ file_id: 'f1', target_item: 'a1', target_client: null }, { file_id: 'f1', target_item: null, target_client: 'c1' }];
-if (location.hash === '#clients' || location.hash === '#files') {
+const at = (dayOffset: number, h: number, m = 0) => { const d = new Date(); d.setUTCHours(h - 2, m, 0, 0); d.setUTCDate(d.getUTCDate() + dayOffset); return d.toISOString(); };
+const EVENTS = [
+  { id: 'e1', space_id: 's', kind: 'event', title: 'Bright Dental: homepage review call', body: null, starts_at: at(0, 10), ends_at: at(0, 10, 45), all_day: false, recur: null, task_id: null, version: 1, created_by: 'miki' },
+  { id: 'e2', space_id: 's', kind: 'event', title: 'Weekly planning', body: null, starts_at: at(-14, 8, 30), ends_at: at(-14, 9), all_day: false, recur: { freq: 'weekly', byweekday: [1, 4] }, task_id: null, version: 1, created_by: 'me' },
+  { id: 'e3', space_id: 's', kind: 'event', title: 'Work on: booking form', body: null, starts_at: at(1, 13), ends_at: at(1, 15), all_day: false, recur: null, task_id: 'a3', version: 1, created_by: 'me' },
+  { id: 'e4', space_id: 's', kind: 'event', title: 'Kasi Coffee shoot', body: null, starts_at: at(3, 0), ends_at: at(4, 0), all_day: true, recur: null, task_id: null, version: 1, created_by: 'miki' },
+];
+if (location.hash === '#clients' || location.hash === '#files' || location.hash === '#calendar' || location.hash === '#focus') {
   const real = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const table = url.pathname.match(/\/rest\/v1\/(\w+)/)?.[1];
+    const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.pathname.endsWith('/rpc/busy_slots')) return json([{ user_id: 'miki', starts_at: at(0, 14), ends_at: at(0, 16), all_day: false, recur: null }, { user_id: 'miki', starts_at: at(-7, 18), ends_at: at(-7, 19), all_day: false, recur: { freq: 'weekly', byweekday: [2] } }]);
+    if (url.pathname.endsWith('/rpc/focus_summaries')) return json([{ user_id: 'me', day: '', measured_seconds: 4800, adjusted_seconds: 0, sessions: 2, completed: 1, running: true }, { user_id: 'miki', day: '', measured_seconds: 2700, adjusted_seconds: 0, sessions: 1, completed: 1, running: false }]);
+    if (table === 'focus_sessions') return json([{ id: 'fs1', mode: 'countdown', started_at: at(0, 7), ended_at: at(0, 7, 50), paused_seconds: 0, completed: true, adjust_seconds: 600, adjust_reason: 'Forgot to start the timer' }]);
+    if (table === 'event_exceptions') return json([]);
+    if (table === 'items' && url.searchParams.get('kind') === 'eq.event') return json(url.searchParams.get('recur') === 'is.null' ? EVENTS.filter((e) => !e.recur) : EVENTS.filter((e) => e.recur));
+    if (table === 'items' && url.searchParams.get('kind') === 'eq.task') return json([{ id: 'a2', space_id: 's', title: 'Send deposit reminder to Lumen Studio', due_at: at(1, 16, 30), assignee: 'me', status: 'open' }]);
     if (url.pathname.includes('/storage/v1/object/sign/')) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (table === 'file_versions' || table === 'file_links') {
       const key = table === 'file_versions' ? 'item_id' : 'file_id';
@@ -86,9 +102,11 @@ const partner = { id: MIKI, email: 'miki@gmail.com', role: 'member' as const, di
 const asMember = location.search.includes('member');
 const fakeReq: DeletionRequest = { id: 'r1', item_id: 'b2', item_version: 1, reason: 'Kasi Coffee sent the files on WhatsApp already, this is a duplicate.', requested_by: MIKI, status: 'pending', action: 'delete', created_at: soon(-2), items: { title: 'Collect logo files from Kasi Coffee', kind: 'task', space_id: 's' } };
 const deletion = { isOwner: !asMember, requestFor: (id: string) => (id === 'b2' ? fakeReq : undefined), onAskDelete: async () => {}, onTrash: async () => {} };
-const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion };
+const card = { userId: ME, partner, nameOf, onEdit: async () => {}, onHandOver: async () => {}, arrived: null, deletion, onSchedule: () => {} };
 const trashMode = location.hash === '#trash';
 const filesMode = location.hash === '#files';
+const calMode = location.hash === '#calendar';
+const focusMode = location.hash === '#focus';
 const fakeUploads = [
   { op_id: 'u1', space_id: 's', item_id: null, name: 'site-visit-photo.jpg', mime: 'image/jpeg', size: 3400000, sha256: '', blob: new Blob(), state: 'uploading' as const, progress: 0.62, added_at: '' },
   { op_id: 'u2', space_id: 's', item_id: null, name: 'brand-guide.pdf', mime: 'application/pdf', size: 9800000, sha256: '', blob: new Blob(), state: 'failed' as const, error: 'Offline. It will upload when you reconnect.', progress: 0.1, added_at: '' },
@@ -104,6 +122,8 @@ createRoot(document.getElementById('root')!).render(
       <button className="ghost inbox-btn"><BellIcon /><span className="label-wide">Inbox</span><span className="count">2</span></button>
       <details className="account"><summary><span className="avatar">H</span></summary></details>
     </header>
+    {focusMode && <FocusPanel userId={ME} timer={{ id: 't', mode: 'cycle', started_at: Date.now() - 31 * 60_000, paused_at: null, paused_ms: 0, planned_seconds: 1500, break_seconds: 300, label: 'Chapter 4 revision', task_id: null }}
+      setTimer={() => {}} queue={async () => {}} nameOf={nameOf} tasks={[]} onClose={() => {}} online />}
     {inbox && <Inbox push="registered" onRead={async () => {}} onClose={() => {}} items={[
       { id: 'n1', kind: 'task_assigned', title: 'Miki assigned you a task', body: 'Approve homepage copy for Bright Dental', item_id: null, created_at: soon(-1), read_at: null },
       { id: 'n2', kind: 'task_done', title: 'Miki completed a task', body: 'Collect testimonials', item_id: null, created_at: soon(-20), read_at: soon(-2) },
@@ -118,7 +138,8 @@ createRoot(document.getElementById('root')!).render(
         <section className="intro"><p className="date">Monday, 16 November</p><h1>WebRift</h1>
           <p className="summary">You have 3 tasks on your side. Miki has 2 tasks. One task is still unclaimed.</p></section>
         <div className="views"><button className={clientsMode ? '' : 'on'}>Tasks and notes</button><button className={clientsMode ? 'on' : ''}>Clients and money</button></div>
-        {filesMode ? <FilesView spaceId="s" userId={ME} isOwner={!asMember} online nameOf={nameOf} tasks={[...mine, ...theirs].map((t) => ({ id: t.id, title: t.title }))}
+        {calMode ? <CalendarView userId={ME} spaces={[{ id: 's', name: 'WebRift', visibility: 'shared', owner_id: null }]} nameOf={nameOf} partnerName="Miki"
+          queue={async () => {}} pendingCount={0} online prefill={null} onPrefillUsed={() => {}} /> : filesMode ? <FilesView spaceId="s" userId={ME} isOwner={!asMember} online nameOf={nameOf} tasks={[...mine, ...theirs].map((t) => ({ id: t.id, title: t.title }))}
           uploads={fakeUploads} refused={[{ name: 'drone-footage.mov', reason: 'It is 312.0 MB; the limit is 50 MB per file on the current free plan.' }]}
           onPick={async () => {}} onRetry={() => {}} onRemoveUpload={() => {}} onRename={async () => {}} requestFor={() => undefined}
           onAskDelete={async () => {}} onTrash={async () => {}} refreshKey={0} /> : trashMode ? <TrashView isOwner={!asMember} requests={[]} nameOf={nameOf} onAskRestore={async () => {}} onRestore={async () => {}} onPurge={async () => {}} items={[
