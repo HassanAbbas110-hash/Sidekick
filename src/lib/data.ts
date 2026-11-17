@@ -105,6 +105,9 @@ export const loadBalances = async (clientIds: string[]) =>
 export const loadPaymentsSince = async (clientIds: string[], fromDay: string) =>
   clientIds.length ? check(await supabase.from('payment_ledger').select('*').in('client_id', clientIds).gte('received_on', fromDay)) as Payment[] : [];
 
+/** Hassan only; refused for clients with money records (archive those instead). */
+export async function deleteClient(id: string) { check(await supabase.rpc('delete_client', { p_id: id })); }
+
 export async function loadClientMoney(clientId: string): Promise<ClientMoney> {
   const [charges, payments, agreements] = await Promise.all([
     supabase.from('charge_balances').select('*').eq('client_id', clientId).order('due_on'),

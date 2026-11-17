@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { createClient, loadBalances, loadClientMoney, loadClients, updateClient, type Balance, type Charge, type Client, type ClientMoney, type Stage } from '../lib/data.ts';
+import { createClient, loadBalances, loadClientMoney, loadClients, updateClient, type Balance, type Charge, type Client, type ClientMoney, type Stage, deleteClient } from '../lib/data.ts';
+import { whatsappLink } from '../lib/links.ts';
 import { withCache } from '../lib/cache.ts';
 import { formatMoney, parseMoney } from '../lib/money.ts';
 import type { MoneyFn, Op } from '../sync/outbox.ts';
@@ -20,9 +21,10 @@ type Props = {
   queue: (op: Op) => Promise<void>; online: boolean; focusId?: string | null;
   /** The client's own files (logos, briefs, quotes), drawn by the Files screen in client mode. */
   renderFiles?: (clientId: string) => import('react').ReactNode;
+  isOwner?: boolean;
 };
 
-export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, focusId, renderFiles }: Props) {
+export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, focusId, renderFiles, isOwner = false }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -56,7 +58,8 @@ export function ClientsView({ spaceId, userId, nameOf, pending, queue, online, f
   if (open) {
     return <ClientDetail client={open} userId={userId} nameOf={nameOf} pending={pending.filter((p) => p.type === 'call' && p.client_id === open.id)}
       queue={queue} online={online} onBack={() => setOpenId(null)}
-      onSaved={(c) => setClients((cs) => cs.map((x) => (x.id === c.id ? c : x)))} reloadList={reload} renderFiles={renderFiles} />;
+      onSaved={(c) => setClients((cs) => cs.map((x) => (x.id === c.id ? c : x)))} reloadList={reload} renderFiles={renderFiles} isOwner={isOwner}
+      onDeleted={async () => { setOpenId(null); await reload(); }} />;
   }
 
   return (
@@ -159,9 +162,10 @@ type DetailProps = {
   client: Client; userId: string; nameOf: (id: string | null) => string; pending: Op[]; queue: (op: Op) => Promise<void>;
   online: boolean; onBack: () => void; onSaved: (c: Client) => void; reloadList: () => Promise<void>;
   renderFiles?: (clientId: string) => import('react').ReactNode;
+  isOwner?: boolean; onDeleted?: () => Promise<void>;
 };
 
-function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBack, onSaved, reloadList, renderFiles }: DetailProps) {
+function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBack, onSaved, reloadList, renderFiles, isOwner = false, onDeleted }: DetailProps) {
   const [money, setMoney] = useState<ClientMoney | null>(null);
   const [form, setForm] = useState<'payment' | 'charge' | 'agreement' | null>(null);
   const [notice, setNotice] = useState('');
@@ -218,7 +222,8 @@ function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBac
         <dl className="facts">
           {c.contact_name && <><dt>Contact</dt><dd>{c.contact_name}</dd></>}
           {c.email && <><dt>Email</dt><dd><a href={`mailto:${c.email}`}>{c.email}</a></dd></>}
-          {c.phone && <><dt>Phone</dt><dd><a href={`tel:${c.phone}`}>{c.phone}</a></dd></>}
+          {c.phone && <><dt>Phone</dt><dd className="phone-line"><a href={`tel:${c.phone}`}>{c.phone}</a>
+            {whatsappLink(c.phone) && <a className="wa-btn" href={whatsappLink(c.phone)!} target="_blank" rel="noreferrer">WhatsApp</a>}</dd></>}
           {c.website && <><dt>Website</dt><dd><a href={c.website.startsWith('http') ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer">{c.website}</a></dd></>}
           {c.follow_up_on && <><dt>Follow up</dt><dd>{fmtDay(c.follow_up_on)}</dd></>}
           <dt>Responsible</dt><dd>{c.responsible ? nameOf(c.responsible) : 'Not set'}</dd>
@@ -308,6 +313,7 @@ function ClientDetail({ client: c, userId, nameOf, pending, queue, online, onBac
       {money && money.charges.length === 0 && money.payments.length === 0 && !form && (
         <p className="quiet">No money recorded for {c.name} yet. Start with a new agreement, or add a single charge.</p>
       )}
+      <DeleteClient client={c} isOwner={isOwner} online={online} onArchive={() => saveStage('archived')} onDeleted={onDeleted} />
     </section>
   );
 }
@@ -448,5 +454,31 @@ function ClientFields({ client: c, onSave, onCancel }: { client: Client; onSave:
       <label>Notes<textarea rows={3} value={f.notes} onChange={set('notes')} /></label>
       <div className="row-end"><button type="button" className="ghost" onClick={onCancel}>Cancel</button><button className="primary">Save details</button></div>
     </form>
+  );
+}
+
+function DeleteClient({ client: c, isOwner, online, onArchive, onDeleted }: {
+  client: Client; isOwner: boolean; online: boolean; onArchive: () => void; onDeleted?: () => Promise<void>;
+}) {
+  const [msg, setMsg] = useState('');
+  const [hasMoney, setHasMoney] = useState(false);
+  if (!isOwner) return <p className="hint client-danger">Only Hassan can delete clients. To hide this one, set its stage to Archived.</p>;
+  async function remove() {
+    if (!confirm(`Delete ${c.name}? Their details and history go for good. Their files stay in this space, just no longer filed under them.`)) return;
+    try { await deleteClient(c.id); await onDeleted?.(); }
+    catch (e) {
+      const t = String(e);
+      if (/has_money_records/.test(t)) { setHasMoney(true); setMsg(`${c.name} has money records, so they cannot be deleted. The ledger is kept for good. Archive them instead to hide them.`); }
+      else setMsg(online ? t.replace(/^Error: /, '') : 'Deleting a client needs a connection.');
+    }
+  }
+  return (
+    <div className="client-danger">
+      {msg && <p className="field-error" role="alert">{msg}</p>}
+      <div className="row-start">
+        {hasMoney && c.stage !== 'archived' && <button onClick={onArchive}>Archive {c.name}</button>}
+        <button className="ghost danger" onClick={remove}>Delete client</button>
+      </div>
+    </div>
   );
 }

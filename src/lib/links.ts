@@ -26,3 +26,10 @@ export function openLink(url: string) {
   const safe = safeUrl(url);
   if (safe) window.open(safe, '_blank', 'noopener,noreferrer');
 }
+
+/** WhatsApp chat link for a phone number written the South African way (082 ... or +27 82 ...). */
+export function whatsappLink(phone: string | null) {
+  const d = (phone ?? '').replace(/[^\d+]/g, '');
+  const intl = d.startsWith('+') ? d.slice(1) : d.startsWith('00') ? d.slice(2) : d.startsWith('0') ? `27${d.slice(1)}` : d;
+  return /^\d{8,15}$/.test(intl) ? `https://wa.me/${intl}` : null;
+}

@@ -97,6 +97,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [threadKey, setThreadKey] = useState(0);
   const [live, setLive] = useState(false);
+  const liveRef = useRef(false);
+  liveRef.current = live;
   const [incoming, setIncoming] = useState<Incoming | null>(null);
   useEffect(() => onShare(async () => { const s = await takeShare(); if (s) setIncoming(s); }), []);
   const [liveKey, setLiveKey] = useState(0); // bumps when the other person changes something
@@ -270,7 +272,8 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     runUploads();
-    const timer = setInterval(() => { flush(); reloadItems(); reloadInbox(); reloadDeletion(); runUploads(); }, 30_000); // shortcut: polling; realtime later
+    // safety net: unsent changes and uploads always retry; full reloads only when the live connection is down
+    const timer = setInterval(() => { flush(); runUploads(); if (!liveRef.current) { reloadItems(); reloadInbox(); reloadDeletion(); } }, 30_000);
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
@@ -556,7 +559,7 @@ export function Workspace({ userId, email }: { userId: string; email: string }) 
               ) : view === 'files' ? (
                 renderFilesFor(null)
               ) : view === 'clients' ? (
-                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} focusId={jump?.kind === 'client' ? jump.id : null} renderFiles={(cid) => renderFilesFor(cid)} />
+                <ClientsView spaceId={space.id} userId={userId} nameOf={nameOf} pending={pending} queue={queue} online={sync.state !== 'offline'} focusId={jump?.kind === 'client' ? jump.id : null} renderFiles={(cid) => renderFilesFor(cid)} isOwner={isOwner} />
               ) : (<>
               {isOwner && <Approvals requests={requests} nameOf={nameOf} onDecide={async (r, ok) => { const out = await decideRequest(r.id, ok); await afterDeletion(); return out; }} />}
               <QuickAdd partnerName={partnerName} partnerId={partner?.id ?? null} userId={userId} onAdd={addItem} />

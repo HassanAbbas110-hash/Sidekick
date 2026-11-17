@@ -123,3 +123,15 @@ test('clients live only in shared spaces and keep an edit history', async () => 
   const hist = await as(db, HASSAN, `select version, snapshot->>'stage' as stage from client_versions where client_id = $1 order by version`, [c]);
   assert.deepEqual(hist, [{ version: 1, stage: 'approached' }, { version: 2, stage: 'proposal' }]);
 });
+
+test('deleting a client: Hassan only, never one with money records; its files stay in the space', async () => {
+  const db = await freshDb();
+  const empty = (await as<{ id: string }>(db, HASSAN, `insert into clients (space_id, name) values ($1, 'Lead that went nowhere') returning id`, [SHARED]))[0].id;
+  const paying = (await as<{ id: string }>(db, HASSAN, `insert into clients (space_id, name) values ($1, 'Paying client') returning id`, [SHARED]))[0].id;
+  await as(db, HASSAN, `select record_payment($1, $2, 5000, 'ZAR', '2026-11-16') as r`, [randomUUID(), paying]);
+  await assert.rejects(as(db, MARKETER, `select delete_client($1)`, [empty]), /owner_only/);
+  await assert.rejects(as(db, HASSAN, `select delete_client($1)`, [paying]), /has_money_records/);
+  assert.equal((await as<{ r: string }>(db, HASSAN, `select delete_client($1) as r`, [empty]))[0].r, 'deleted');
+  assert.deepEqual((await as<{ name: string }>(db, HASSAN, `select name from clients`)).map((c) => c.name), ['Paying client']);
+  await assert.rejects(as(db, HASSAN, `delete from clients where id = $1`, [paying]), /permission denied/, 'no deleting around the rule');
+});

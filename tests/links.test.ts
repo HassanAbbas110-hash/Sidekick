@@ -38,3 +38,12 @@ test('links (app side): only http(s) addresses are opened; typed addresses get h
   for (const bad of ['javascript:alert(1)', 'JavaScript:alert(1)', 'data:text/html,x', 'mailto:x@y.z', '', 'not a url at all']) assert.equal(safeUrl(bad), null, bad);
   assert.deepEqual(linkParts('https://www.webrift.co.za/pricing?x=1'), { host: 'webrift.co.za', path: '/pricing', origin: 'https://www.webrift.co.za' });
 });
+
+test('WhatsApp links: South African numbers become international, junk gives no link', async () => {
+  const { whatsappLink } = await import('../src/lib/links.ts');
+  assert.equal(whatsappLink('082 123 4567'), 'https://wa.me/27821234567');
+  assert.equal(whatsappLink('+27 82 123 4567'), 'https://wa.me/27821234567');
+  assert.equal(whatsappLink('0027821234567'), 'https://wa.me/27821234567');
+  assert.equal(whatsappLink('call me'), null);
+  assert.equal(whatsappLink(null), null);
+});

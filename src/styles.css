@@ -1174,3 +1174,47 @@ button.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--plum-2)
 .drawer { z-index: 15; }
 .search { z-index: 16; }
 .scrim.sheet-scrim { z-index: 11; }
+
+/* =====================================================================
+   Steady and fast: no wobble, cheaper scrolling.
+   ===================================================================== */
+/* the page never shifts sideways when a panel opens or content grows past one screen */
+html { scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
+body { overflow-x: clip; overscroll-behavior: none; }
+
+/* the lit room is painted once on its own layer instead of being repainted on every scroll frame */
+body { background: var(--ink); background-attachment: scroll; }
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; transform: translateZ(0);
+  background:
+    radial-gradient(900px 520px at 100% -10%, color-mix(in srgb, var(--gold-deep) 13%, transparent), transparent 70%),
+    radial-gradient(800px 600px at -10% 110%, color-mix(in srgb, #6b4fd8 11%, transparent), transparent 70%);
+}
+body::before { mix-blend-mode: normal; opacity: 0.025; transform: translateZ(0); }
+#root { z-index: auto; }
+
+/* touch screens: a tap must not leave a card nudged sideways (hover sticks after a tap on phones) */
+@media (hover: none), (pointer: coarse) {
+  .plate-item:hover, .client-row:hover:not(:disabled), .link-card:hover { transform: none; }
+  .tile:hover:not(:disabled) .tile-art { transform: none; }
+  .task:hover, .plate-item:hover, .client-row:hover:not(:disabled) { box-shadow: var(--lift); }
+  button.primary:hover:not(:disabled)::after { transform: translateX(-120%); transition: none; }
+  /* blur behind bars is the costliest thing on a phone; near-solid bars look the same */
+  .bar { backdrop-filter: none; background: color-mix(in srgb, var(--ink) 96%, transparent); }
+  .tabbar { backdrop-filter: none; background: color-mix(in srgb, var(--plum) 97%, transparent); }
+  body::before { display: none; }
+}
+
+/* page reveal: shorter and lighter so switching tabs feels instant */
+.stage > *, .today > *, .weekly > * { animation-duration: 0.35s; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+/* fixed heights that follow the real visible screen (phone toolbars come and go) */
+.boot, .signin { min-height: 100dvh; }
+.rail { height: calc(100dvh - var(--bar-h)); }
+
+/* clients: delete and WhatsApp */
+.phone-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.wa-btn { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 650; text-decoration: none; color: var(--ink); background: var(--sage); }
+.client-danger { display: grid; gap: 8px; margin-top: 12px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.danger { color: var(--coral); }
